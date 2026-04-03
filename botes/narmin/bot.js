@@ -562,8 +562,8 @@ bot.action("wallet", async (ctx) => {
       [Markup.button.callback(t(ctx, "buttons.vipChannel"), "wip_channel")],
       [
         Markup.button.callback(
-          t(ctx, "buttons.starAmount", { amount: 1 }),
-          "buy_1",
+          t(ctx, "buttons.starAmount", { amount: 50 }),
+          "buy_50",
         ),
         Markup.button.callback(
           t(ctx, "buttons.starAmount", { amount: 100 }),

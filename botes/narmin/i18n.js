@@ -172,11 +172,11 @@ const locales = {
     },
     captions: {
       mainMenuSimple:
-        "✋🏻 Merhaba Balam Hoş Geldin!\n\n🔥 Tam Açık İçerikler\n\n🥵 Görüntülü arama, özel çekimler\n\n✅ Ücretsiz giriş fırsatı\n\n🔗 Davet ettiğin her kişi için {star_per_invite} 🌟 kazan!",
+        "✋🏻 Merhaba Bebeğim Hoş Geldin!\n\n🔥 Tam Açık İçerikler\n\n🥵 Görüntülü arama, özel çekimler\n\n✅ Ücretsiz giriş fırsatı\n\n🔗 Davet ettiğin her kişi için {star_per_invite} 🌟 kazan!",
       mainMenuFull:
-        "✋🏻 Merhaba Balam Hoş Geldin!\n\n👑 VIP Kanal Her Gün Yeni Özel Videolar\n\n🔥 Tam Açık İçerikler\n\n🥵 Görüntülü arama, özel çekimler\n\n✅ Ücretsiz giriş fırsatı\n\n🔗 Davet ettiğin her kişi için {star_per_invite} 🌟 kazan!",
+        "✋🏻 Merhaba Bebeğim Hoş Geldin!\n\n👑 VIP Kanal Her Gün Yeni Özel Videolar\n\n🔥 Tam Açık İçerikler\n\n🥵 Görüntülü arama, özel çekimler\n\n✅ Ücretsiz giriş fırsatı\n\n🔗 Davet ettiğin her kişi için {star_per_invite} 🌟 kazan!",
       joinRequest:
-        "👋🏻 Merhaba Balam Hoş Geldin\n\n🔞 Özel tam açık videolarım, fotoğraflarım, arşivlerim ve görüntülü arama yayınlarımın hepsi Premium kanalımda!\n\n👇🏻 İçeriklerimi aşağıdaki kanalda görebilirsin!\n\n🔗 Kanal: [{channel_url}]\n\n⚠️ Dikkat: Kanala katılma isteğinin onaylanması için 5 dakika içinde “Yönlendir” düğmesine dokunarak 5 kez yönlendir!",
+        "👋🏻 Merhaba Bebeğim Hoş Geldin\n\n🔞 Özel tam açık videolarım, fotoğraflarım, arşivlerim ve görüntülü arama yayınlarımın hepsi Premium kanalımda!\n\n👇🏻 İçeriklerimi aşağıdaki kanalda görebilirsin!\n\n🔗 Kanal: [{channel_url}]\n\n⚠️ Dikkat: Kanala katılma isteğinin onaylanması için 5 dakika içinde “Yönlendir” düğmesine dokunarak 5 kez yönlendir!",
       contentMenu:
         "👑 VIP Kanal Her Gün Yeni Özel Videolar\n\n🍑 Paket 1: {p1_photos} Fotoğraf - Fiyat {p1_price}🌟\n\n🍑 Paket 2: {p2_videos} Video - Fiyat {p2_price}🌟\n\n🍑 Paket 3: {p3_photos} Fotoğraf, {p3_videos} Video - Fiyat {p3_price}🌟\n\n🍑 Paket 4: {p4_photos} Fotoğraf, {p4_videos} Video - Fiyat {p4_price}🌟",
       showMenu:
@@ -312,11 +312,11 @@ const locales = {
     },
     captions: {
       mainMenuSimple:
-        "✋🏻 Hi Balam, welcome!\n\n🔥 Fully open content\n\n🥵 Video call, private shoots\n\n✅ Free access chance\n\n🔗 Earn {star_per_invite} 🌟 for every person you invite!",
+        "✋🏻 Hi Baby, welcome!\n\n🔥 Fully open content\n\n🥵 Video call, private shoots\n\n✅ Free access chance\n\n🔗 Earn {star_per_invite} 🌟 for every person you invite!",
       mainMenuFull:
-        "✋🏻 Hi Balam, welcome!\n\n👑 VIP channel with new private videos every day\n\n🔥 Fully open content\n\n🥵 Video call, private shoots\n\n✅ Free access chance\n\n🔗 Earn {star_per_invite} 🌟 for every person you invite!",
+        "✋🏻 Hi Baby, welcome!\n\n👑 VIP channel with new private videos every day\n\n🔥 Fully open content\n\n🥵 Video call, private shoots\n\n✅ Free access chance\n\n🔗 Earn {star_per_invite} 🌟 for every person you invite!",
       joinRequest:
-        "👋🏻 Hi Balam, welcome\n\n🔞 All my private fully open videos, photos, archives and video call streams are in my Premium channel!\n\n👇🏻 You can see my content in the channel below!\n\n🔗 Channel: [{channel_url}]\n\n⚠️ Attention: To approve your join request, within 5 minutes tap “Forward” and forward 5 times!",
+        "👋🏻 Hi Baby, welcome\n\n🔞 All my private fully open videos, photos, archives and video call streams are in my Premium channel!\n\n👇🏻 You can see my content in the channel below!\n\n🔗 Channel: [{channel_url}]\n\n⚠️ Attention: To approve your join request, within 5 minutes tap “Forward” and forward 5 times!",
       contentMenu:
         "👑 VIP channel with new private videos every day\n\n🍑 Package 1: {p1_photos} photos - Price {p1_price}🌟\n\n🍑 Package 2: {p2_videos} videos - Price {p2_price}🌟\n\n🍑 Package 3: {p3_photos} photos, {p3_videos} videos - Price {p3_price}🌟\n\n🍑 Package 4: {p4_photos} photos, {p4_videos} videos - Price {p4_price}🌟",
       showMenu:
@@ -445,11 +445,11 @@ const locales = {
     },
     captions: {
       mainMenuSimple:
-        "✋🏻 Привет, Balam, добро пожаловать!\n\n🔥 Полностью открытый контент\n\n🥵 Видеозвонок, приватные съёмки\n\n✅ Шанс бесплатного доступа\n\n🔗 За каждого приглашённого получай {star_per_invite} 🌟!",
+        "✋🏻 Привет, Дорогой, добро пожаловать!\n\n🔥 Полностью открытый контент\n\n🥵 Видеозвонок, приватные съёмки\n\n✅ Шанс бесплатного доступа\n\n🔗 За каждого приглашённого получай {star_per_invite} 🌟!",
       mainMenuFull:
-        "✋🏻 Привет, Balam, добро пожаловать!\n\n👑 VIP-канал: каждый день новые приватные видео\n\n🔥 Полностью открытый контент\n\n🥵 Видеозвонок, приватные съёмки\n\n✅ Шанс бесплатного доступа\n\n🔗 За каждого приглашённого получай {star_per_invite} 🌟!",
+        "✋🏻 Привет, Дорогой, добро пожаловать!\n\n👑 VIP-канал: каждый день новые приватные видео\n\n🔥 Полностью открытый контент\n\n🥵 Видеозвонок, приватные съёмки\n\n✅ Шанс бесплатного доступа\n\n🔗 За каждого приглашённого получай {star_per_invite} 🌟!",
       joinRequest:
-        "👋🏻 Привет, Balam, добро пожаловать\n\n🔞 Все мои приватные видео, фото, архивы и трансляции видеозвонков — в Premium-канале!\n\n👇🏻 Контент доступен по ссылке ниже!\n\n🔗 Канал: [{channel_url}]\n\n⚠️ Внимание: чтобы подтвердить заявку, в течение 5 минут нажми «Переслать» и перешли 5 раз!",
+        "👋🏻 Привет, Дорогой, добро пожаловать\n\n🔞 Все мои приватные видео, фото, архивы и трансляции видеозвонков — в Premium-канале!\n\n👇🏻 Контент доступен по ссылке ниже!\n\n🔗 Канал: [{channel_url}]\n\n⚠️ Внимание: чтобы подтвердить заявку, в течение 5 минут нажми «Переслать» и перешли 5 раз!",
       contentMenu:
         "👑 VIP-канал: каждый день новые приватные видео\n\n🍑 Пакет 1: {p1_photos} фото — Цена {p1_price}🌟\n\n🍑 Пакет 2: {p2_videos} видео — Цена {p2_price}🌟\n\n🍑 Пакет 3: {p3_photos} фото, {p3_videos} видео — Цена {p3_price}🌟\n\n🍑 Пакет 4: {p4_photos} фото, {p4_videos} видео — Цена {p4_price}🌟",
       showMenu:
@@ -583,11 +583,11 @@ const locales = {
     },
     captions: {
       mainMenuSimple:
-        "✋🏻 Hallo Balam, willkommen!\n\n🔥 Vollständig offene Inhalte\n\n🥵 Videoanruf, private Shootings\n\n✅ Chance auf kostenlosen Zugang\n\n🔗 Für jede Einladung bekommst du {star_per_invite} 🌟!",
+        "✋🏻 Hallo Mein Schatz, willkommen!\n\n🔥 Vollständig offene Inhalte\n\n🥵 Videoanruf, private Shootings\n\n✅ Chance auf kostenlosen Zugang\n\n🔗 Für jede Einladung bekommst du {star_per_invite} 🌟!",
       mainMenuFull:
-        "✋🏻 Hallo Balam, willkommen!\n\n👑 VIP-Kanal mit neuen privaten Videos jeden Tag\n\n🔥 Vollständig offene Inhalte\n\n🥵 Videoanruf, private Shootings\n\n✅ Chance auf kostenlosen Zugang\n\n🔗 Für jede Einladung bekommst du {star_per_invite} 🌟!",
+        "✋🏻 Hallo Mein Schatz, willkommen!\n\n👑 VIP-Kanal mit neuen privaten Videos jeden Tag\n\n🔥 Vollständig offene Inhalte\n\n🥵 Videoanruf, private Shootings\n\n✅ Chance auf kostenlosen Zugang\n\n🔗 Für jede Einladung bekommst du {star_per_invite} 🌟!",
       joinRequest:
-        "👋🏻 Hallo Balam, willkommen\n\n🔞 Alle meine privaten, vollständig offenen Videos, Fotos, Archive und Videoanruf-Streams sind in meinem Premium-Kanal!\n\n👇🏻 Du findest meine Inhalte im Kanal unten!\n\n🔗 Kanal: [{channel_url}]\n\n⚠️ Achtung: Um deine Beitrittsanfrage zu bestätigen, tippe innerhalb von 5 Minuten auf „Weiterleiten“ und leite 5-mal weiter!",
+        "👋🏻 Hallo Mein Schatz, willkommen\n\n🔞 Alle meine privaten, vollständig offenen Videos, Fotos, Archive und Videoanruf-Streams sind in meinem Premium-Kanal!\n\n👇🏻 Du findest meine Inhalte im Kanal unten!\n\n🔗 Kanal: [{channel_url}]\n\n⚠️ Achtung: Um deine Beitrittsanfrage zu bestätigen, tippe innerhalb von 5 Minuten auf „Weiterleiten“ und leite 5-mal weiter!",
       contentMenu:
         "👑 VIP-Kanal mit neuen privaten Videos jeden Tag\n\n🍑 Paket 1: {p1_photos} Fotos - Preis {p1_price}🌟\n\n🍑 Paket 2: {p2_videos} Videos - Preis {p2_price}🌟\n\n🍑 Paket 3: {p3_photos} Fotos, {p3_videos} Videos - Preis {p3_price}🌟\n\n🍑 Paket 4: {p4_photos} Fotos, {p4_videos} Videos - Preis {p4_price}🌟",
       showMenu:
@@ -725,11 +725,11 @@ const locales = {
     },
     captions: {
       mainMenuSimple:
-        "✋🏻 Hai Balam, selamat datang!\n\n🔥 Konten terbuka penuh\n\n🥵 Panggilan video, sesi privat\n\n✅ Kesempatan akses gratis\n\n🔗 Undang teman dan dapatkan {star_per_invite} 🌟 setiap orang!",
+        "✋🏻 Hai Sayangku, selamat datang!\n\n🔥 Konten terbuka penuh\n\n🥵 Panggilan video, sesi privat\n\n✅ Kesempatan akses gratis\n\n🔗 Undang teman dan dapatkan {star_per_invite} 🌟 setiap orang!",
       mainMenuFull:
-        "✋🏻 Hai Balam, selamat datang!\n\n👑 Kanal VIP: video privat baru setiap hari\n\n🔥 Konten terbuka penuh\n\n🥵 Panggilan video, sesi privat\n\n✅ Kesempatan akses gratis\n\n🔗 Undang teman dan dapatkan {star_per_invite} 🌟 setiap orang!",
+        "✋🏻 Hai Sayangku, selamat datang!\n\n👑 Kanal VIP: video privat baru setiap hari\n\n🔥 Konten terbuka penuh\n\n🥵 Panggilan video, sesi privat\n\n✅ Kesempatan akses gratis\n\n🔗 Undang teman dan dapatkan {star_per_invite} 🌟 setiap orang!",
       joinRequest:
-        "👋🏻 Hai Balam, selamat datang\n\n🔞 Semua video, foto, arsip privat dan siaran panggilan video ada di kanal Premium!\n\n👇🏻 Kamu bisa lihat konten di kanal berikut!\n\n🔗 Kanal: [{channel_url}]\n\n⚠️ Perhatian: Untuk menyetujui permintaan gabung, dalam 5 menit tekan “Teruskan” dan teruskan 5 kali!",
+        "👋🏻 Hai Sayangku, selamat datang\n\n🔞 Semua video, foto, arsip privat dan siaran panggilan video ada di kanal Premium!\n\n👇🏻 Kamu bisa lihat konten di kanal berikut!\n\n🔗 Kanal: [{channel_url}]\n\n⚠️ Perhatian: Untuk menyetujui permintaan gabung, dalam 5 menit tekan “Teruskan” dan teruskan 5 kali!",
       contentMenu:
         "👑 Kanal VIP: video privat baru setiap hari\n\n🍑 Paket 1: {p1_photos} foto - Harga {p1_price}🌟\n\n🍑 Paket 2: {p2_videos} video - Harga {p2_price}🌟\n\n🍑 Paket 3: {p3_photos} foto, {p3_videos} video - Harga {p3_price}🌟\n\n🍑 Paket 4: {p4_photos} foto, {p4_videos} video - Harga {p4_price}🌟",
       showMenu:
@@ -860,11 +860,11 @@ const locales = {
     },
     captions: {
       mainMenuSimple:
-        "✋🏻 مرحباً Balam، أهلاً بك!\n\n🔥 محتوى مفتوح بالكامل\n\n🥵 مكالمة فيديو، جلسات خاصة\n\n✅ فرصة دخول مجاني\n\n🔗 اربح {star_per_invite} 🌟 لكل شخص تقوم بدعوته!",
+        "✋🏻 مرحباً حبيبي، أهلاً بك!\n\n🔥 محتوى مفتوح بالكامل\n\n🥵 مكالمة فيديو، جلسات خاصة\n\n✅ فرصة دخول مجاني\n\n🔗 اربح {star_per_invite} 🌟 لكل شخص تقوم بدعوته!",
       mainMenuFull:
-        "✋🏻 مرحباً Balam، أهلاً بك!\n\n👑 قناة VIP: فيديوهات خاصة جديدة يومياً\n\n🔥 محتوى مفتوح بالكامل\n\n🥵 مكالمة فيديو، جلسات خاصة\n\n✅ فرصة دخول مجاني\n\n🔗 اربح {star_per_invite} 🌟 لكل شخص تقوم بدعوته!",
+        "✋🏻 مرحباً حبيبي، أهلاً بك!\n\n👑 قناة VIP: فيديوهات خاصة جديدة يومياً\n\n🔥 محتوى مفتوح بالكامل\n\n🥵 مكالمة فيديو، جلسات خاصة\n\n✅ فرصة دخول مجاني\n\n🔗 اربح {star_per_invite} 🌟 لكل شخص تقوم بدعوته!",
       joinRequest:
-        "👋🏻 مرحباً Balam، أهلاً بك\n\n🔞 جميع فيديوهاتي وصوري الخاصة والأرشيف وبثوث مكالمات الفيديو موجودة في قناتي المميزة!\n\n👇🏻 يمكنك مشاهدة المحتوى في القناة بالأسفل!\n\n🔗 القناة: [{channel_url}]\n\n⚠️ ملاحظة: لتأكيد طلب الانضمام خلال 5 دقائق اضغط «إعادة توجيه» وقم بإعادة التوجيه 5 مرات!",
+        "👋🏻 مرحباً حبيبي، أهلاً بك\n\n🔞 جميع فيديوهاتي وصوري الخاصة والأرشيف وبثوث مكالمات الفيديو موجودة في قناتي المميزة!\n\n👇🏻 يمكنك مشاهدة المحتوى في القناة بالأسفل!\n\n🔗 القناة: [{channel_url}]\n\n⚠️ ملاحظة: لتأكيد طلب الانضمام خلال 5 دقائق اضغط «إعادة توجيه» وقم بإعادة التوجيه 5 مرات!",
       contentMenu:
         "👑 قناة VIP: فيديوهات خاصة جديدة يومياً\n\n🍑 باقة 1: {p1_photos} صور - السعر {p1_price}🌟\n\n🍑 باقة 2: {p2_videos} فيديو - السعر {p2_price}🌟\n\n🍑 باقة 3: {p3_photos} صور، {p3_videos} فيديو - السعر {p3_price}🌟\n\n🍑 باقة 4: {p4_photos} صور، {p4_videos} فيديو - السعر {p4_price}🌟",
       showMenu:
