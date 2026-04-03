@@ -4,6 +4,7 @@ const axios = require("axios");
 const config_data = require("./config.json");
 const contect_data = require("./content.json");
 const i18n = require("./i18n");
+const cron = require("node-cron");
 const fs = require("fs");
 const path = require("path");
 const sqlite3 = require("sqlite3");
@@ -37,7 +38,11 @@ const getCtxUserId = (ctx) =>
   ctx?.message?.from?.id ??
   ctx?.chatJoinRequest?.from?.id ??
   null;
-const normalizeLang = (value) => (value === "tr" ? "tr" : "az");
+const supportedLangs = new Set(["az", "tr", "en", "ru", "de", "id", "ar"]);
+const normalizeLang = (value) => {
+  const v = typeof value === "string" ? value.toLowerCase() : "";
+  return supportedLangs.has(v) ? v : "az";
+};
 bot.use(async (ctx, next) => {
   if (!ctx.session) ctx.session = {};
   const userId = getCtxUserId(ctx);
@@ -1231,6 +1236,15 @@ bot.action("language", async (ctx) => {
         Markup.button.callback(t(ctx, "buttons.languageAz"), "set_lang_az"),
         Markup.button.callback(t(ctx, "buttons.languageTr"), "set_lang_tr"),
       ],
+      [
+        Markup.button.callback(t(ctx, "buttons.languageEn"), "set_lang_en"),
+        Markup.button.callback(t(ctx, "buttons.languageRu"), "set_lang_ru"),
+      ],
+      [
+        Markup.button.callback(t(ctx, "buttons.languageDe"), "set_lang_de"),
+        Markup.button.callback(t(ctx, "buttons.languageId"), "set_lang_id"),
+      ],
+      [Markup.button.callback(t(ctx, "buttons.languageAr"), "set_lang_ar")],
       [Markup.button.callback(t(ctx, "buttons.home"), "home")],
     ]);
     await ctx.answerCbQuery();
@@ -1248,7 +1262,7 @@ bot.action("language", async (ctx) => {
   }
 });
 
-bot.action(/set_lang_(az|tr)/, async (ctx) => {
+bot.action(/set_lang_(az|tr|en|ru|de|id|ar)/, async (ctx) => {
   try {
     const selected = normalizeLang(ctx.match[1]);
     ctx.session.lang = selected;
@@ -1481,94 +1495,103 @@ bot.on("text", async (ctx) => {
   }
 });
 
-setInterval(
-  async () => {
-    try {
-      await bot.telegram.sendMessage(
-        config_data.owner_id,
-        t(null, "messages.dailyCheckOwner"),
-      );
-      const now = Date.now();
-      const all_users = await get_all_data();
-      Object.keys(all_users).forEach(async (key, index) => {
-        try {
-          if (all_users[key].expires_at) {
-            const expiresAt = new Date(all_users[key].expires_at);
-            const oneDayBefore = new Date(
-              expiresAt.getTime() - 24 * 60 * 60 * 1000,
+let dailyCheckRunning = false;
+const runDailySubscriptionCheck = async () => {
+  if (dailyCheckRunning) return;
+  dailyCheckRunning = true;
+  try {
+    await bot.telegram.sendMessage(
+      config_data.owner_id,
+      t(null, "messages.dailyCheckOwner"),
+    );
+    const now = Date.now();
+    const all_users = await get_all_data();
+    for (const key of Object.keys(all_users)) {
+      try {
+        if (all_users[key].expires_at) {
+          const expiresAt = new Date(all_users[key].expires_at);
+          const oneDayBefore = new Date(
+            expiresAt.getTime() - 24 * 60 * 60 * 1000,
+          );
+          if (
+            now >= oneDayBefore &&
+            now < expiresAt &&
+            all_users[key].in_channel &&
+            !all_users[key].is_vip
+          ) {
+            const userLang =
+              all_users[key] && typeof all_users[key].lang === "string"
+                ? all_users[key].lang
+                : "az";
+            await bot.telegram.sendMessage(
+              all_users[key].user_id,
+              i18n.t(userLang, "messages.expiringSoonUser"),
             );
-            if (
-              now >= oneDayBefore &&
-              now < expiresAt &&
-              all_users[key].in_channel &&
-              !all_users[key].is_vip
-            ) {
-              const userLang =
-                all_users[key] && typeof all_users[key].lang === "string"
-                  ? all_users[key].lang
-                  : "az";
-              await bot.telegram.sendMessage(
-                all_users[key].user_id,
-                i18n.t(userLang, "messages.expiringSoonUser"),
-              );
-              await bot.telegram.sendMessage(
-                config_data.owner_id,
-                t(null, "messages.expiringSoonOwner", {
-                  user_id: all_users[key].user_id,
-                }),
-              );
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-            }
-            if (
-              expiresAt < now &&
-              all_users[key].in_channel &&
-              !all_users[key].is_vip
-            ) {
-              await bot.telegram.kickChatMember(
-                config_data.channel_id,
-                all_users[key].user_id,
-              );
-              await bot.telegram.unbanChatMember(
-                config_data.channel_id,
-                all_users[key].user_id,
-              );
-              let new_data = await {
-                ...all_users[key],
-                in_channel: false,
-                expires_at: null,
-              };
-              await put_user_data(all_users[key].user_id, new_data);
-              const userLang =
-                all_users[key] && typeof all_users[key].lang === "string"
-                  ? all_users[key].lang
-                  : "az";
-              await bot.telegram.sendMessage(
-                all_users[key].user_id,
-                i18n.t(userLang, "messages.expiredUser"),
-              );
-              await bot.telegram.sendMessage(
-                config_data.owner_id,
-                t(null, "messages.expiredOwner", {
-                  user_id: all_users[key].user_id,
-                }),
-              );
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-            }
+            await bot.telegram.sendMessage(
+              config_data.owner_id,
+              t(null, "messages.expiringSoonOwner", {
+                user_id: all_users[key].user_id,
+              }),
+            );
+            await new Promise((resolve) => setTimeout(resolve, 2000));
           }
-        } catch (error) {
-          console.log(error);
+          if (
+            expiresAt < now &&
+            all_users[key].in_channel &&
+            !all_users[key].is_vip
+          ) {
+            await bot.telegram.kickChatMember(
+              config_data.channel_id,
+              all_users[key].user_id,
+            );
+            await bot.telegram.unbanChatMember(
+              config_data.channel_id,
+              all_users[key].user_id,
+            );
+            let new_data = await {
+              ...all_users[key],
+              in_channel: false,
+              expires_at: null,
+            };
+            await put_user_data(all_users[key].user_id, new_data);
+            const userLang =
+              all_users[key] && typeof all_users[key].lang === "string"
+                ? all_users[key].lang
+                : "az";
+            await bot.telegram.sendMessage(
+              all_users[key].user_id,
+              i18n.t(userLang, "messages.expiredUser"),
+            );
+            await bot.telegram.sendMessage(
+              config_data.owner_id,
+              t(null, "messages.expiredOwner", {
+                user_id: all_users[key].user_id,
+              }),
+            );
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
         }
-      });
-    } catch (error) {
-      console.log(error);
+      } catch (error) {
+        console.log(error);
+      }
     }
-  },
-  24 * 60 * 60 * 1000,
-); // 24 saatte bir çalışacak şekilde ayarlandı
+  } catch (error) {
+    console.log(error);
+  } finally {
+    dailyCheckRunning = false;
+  }
+};
+
+const startCronJobs = () => {
+  cron.schedule("0 0 * * *", runDailySubscriptionCheck);
+};
 
 initDb()
   .then(() => bot.launch())
-  .then(() => console.log("Bot is running..."))
+  .then(() => {
+    startCronJobs();
+    console.log("Bot is running...");
+  })
   .catch(async (error) => {
     console.log(error);
     try {
