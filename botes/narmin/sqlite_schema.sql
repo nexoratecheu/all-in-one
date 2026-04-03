@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   expires_at INTEGER,
   joined_at INTEGER,
   in_channel INTEGER NOT NULL DEFAULT 0,
+  lang TEXT,
   data TEXT NOT NULL,
   updated_at INTEGER NOT NULL
 );

@@ -3,6 +3,7 @@ require("dotenv").config();
 const axios = require("axios");
 const config_data = require("./config.json");
 const contect_data = require("./content.json");
+const i18n = require("./i18n");
 const fs = require("fs");
 const path = require("path");
 const sqlite3 = require("sqlite3");
@@ -25,9 +26,72 @@ const initDb = async () => {
   const schemaPath = path.join(__dirname, "sqlite_schema.sql");
   const schemaSql = fs.readFileSync(schemaPath, "utf8");
   await db.exec(schemaSql);
+  try {
+    await db.exec("ALTER TABLE users ADD COLUMN lang TEXT");
+  } catch (e) {}
 };
 
 bot.use(session());
+const getCtxUserId = (ctx) =>
+  ctx?.from?.id ??
+  ctx?.message?.from?.id ??
+  ctx?.chatJoinRequest?.from?.id ??
+  null;
+const normalizeLang = (value) => (value === "tr" ? "tr" : "az");
+bot.use(async (ctx, next) => {
+  if (!ctx.session) ctx.session = {};
+  const userId = getCtxUserId(ctx);
+  if (!ctx.session.lang) {
+    let storedLang = null;
+    if (userId) {
+      const user = await get_user_data(userId);
+      storedLang = user && typeof user.lang === "string" ? user.lang : null;
+      const normalized = normalizeLang(storedLang);
+      ctx.session.lang = normalized;
+      if (user && normalizeLang(user.lang) !== user.lang) {
+        await put_user_data(userId, { ...user, lang: normalized });
+      }
+    } else {
+      ctx.session.lang = "az";
+    }
+  } else {
+    ctx.session.lang = normalizeLang(ctx.session.lang);
+  }
+  ctx.t = (key, params) => i18n.t(ctx.session.lang, key, params);
+  return next();
+});
+
+const t = (ctx, key, params) =>
+  ctx && typeof ctx.t === "function"
+    ? ctx.t(key, params)
+    : i18n.t("az", key, params);
+
+const getInviteUrl = (userId) =>
+  `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${userId}`)}`;
+
+const buildMainMenuButtons = (ctx, userId) =>
+  Markup.inlineKeyboard([
+    [Markup.button.url(t(ctx, "buttons.invite"), getInviteUrl(userId))],
+    [Markup.button.callback(t(ctx, "buttons.vipChannel"), "wip_channel")],
+    [
+      Markup.button.url(
+        t(ctx, "buttons.privateChat"),
+        "https://t.me/narmin_alyvaa",
+      ),
+    ],
+    [
+      Markup.button.callback(t(ctx, "buttons.packages"), "content"),
+      Markup.button.callback(t(ctx, "buttons.videoCall"), "show"),
+    ],
+    [Markup.button.callback(t(ctx, "buttons.wallet"), "wallet")],
+    [Markup.button.callback(t(ctx, "buttons.language"), "language")],
+  ]);
+
+const getMainMenuCaption = (ctx, variant) => {
+  const key =
+    variant === "full" ? "captions.mainMenuFull" : "captions.mainMenuSimple";
+  return t(ctx, key, { star_per_invite: config_data.star_per_invite });
+};
 bot.on("pre_checkout_query", (ctx) => {
   ctx.answerPreCheckoutQuery(true);
 });
@@ -42,39 +106,28 @@ bot.on("successful_payment", async (ctx) => {
     };
     await put_user_data(ctx.from.id, new_user_data);
     await ctx.reply(
-      `✅ Pulqabına Ulduz Əlavə Edilməsi Uğurlu Oldu!\n\n🌟 Əlavə Olunan Ulduz Miqdarı: ${ctx.message.successful_payment.total_amount}\n\n✅ Artıq Məzmunu Əldə Edə Bilərsən!`,
+      t(ctx, "messages.walletTopupSuccess", {
+        amount: ctx.message.successful_payment.total_amount,
+      }),
     );
-    let main_menu_buttons = Markup.inlineKeyboard([
-      [
-        Markup.button.url(
-          "🔗  Dəvət Et Pulsuz Al  🔗",
-          `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-        ),
-      ],
-      [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-      [Markup.button.url("💋  Özəl Söhbət  💋", "https://t.me/narmin_alyvaa")],
-      [
-        Markup.button.callback("🍑  Paketlər  🍑", "content"),
-        Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-      ],
-      [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-    ]);
+    let main_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
     await ctx.replyWithPhoto(config_data.profile_photo_id, {
-      caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+      caption: getMainMenuCaption(ctx, "simple"),
       parse_mode: "Markdown",
       ...main_menu_buttons,
     });
     await bot.telegram.sendMessage(
       config_data.owner_id,
-      `🌟 [İstifadəçi](tg://user?id=${ctx.from.id}): ${ctx.message.successful_payment.total_amount} Ulduz Satın Aldı \n\n#starbuyed`,
+      t(null, "messages.starBoughtOwner", {
+        user_id: ctx.from.id,
+        amount: ctx.message.successful_payment.total_amount,
+      }),
       { parse_mode: "Markdown" },
     );
   } catch (error) {
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Ulduz Əlavə Edilmədi\n\n${error}\n\n#error`,
+      t(null, "messages.starNotAddedOwner", { error }),
     );
     console.log(error);
   }
@@ -82,16 +135,18 @@ bot.on("successful_payment", async (ctx) => {
 const get_user_data = async (user_id) => {
   try {
     const db = await dbPromise;
-    const row = await db.get("SELECT data FROM users WHERE user_id = ?", [
+    const row = await db.get("SELECT data, lang FROM users WHERE user_id = ?", [
       user_id,
     ]);
     if (!row) return null;
-    return JSON.parse(row.data);
+    const parsed = JSON.parse(row.data);
+    if (!parsed.lang && row.lang) parsed.lang = row.lang;
+    return parsed;
   } catch (error) {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ İstifadəçi Məlumatları Alınamadı\n\n${error}\n\n#error`,
+      t(null, "messages.userDataReadFailOwner", { error }),
     );
   }
 };
@@ -123,6 +178,8 @@ const put_user_data = async (user_id, data) => {
         ? Number(data.joined_at) || null
         : null;
     const inChannel = data && data.in_channel ? 1 : 0;
+    const lang =
+      data && typeof data.lang === "string" ? normalizeLang(data.lang) : null;
     await db.run(
       `INSERT INTO users (
          user_id,
@@ -133,10 +190,11 @@ const put_user_data = async (user_id, data) => {
          expires_at,
          joined_at,
          in_channel,
+         lang,
          data,
          updated_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(user_id) DO UPDATE SET
          invite_from = excluded.invite_from,
          user_balance = excluded.user_balance,
@@ -145,6 +203,7 @@ const put_user_data = async (user_id, data) => {
          expires_at = excluded.expires_at,
          joined_at = excluded.joined_at,
          in_channel = excluded.in_channel,
+         lang = excluded.lang,
          data = excluded.data,
          updated_at = excluded.updated_at`,
       [
@@ -156,6 +215,7 @@ const put_user_data = async (user_id, data) => {
         expiresAt,
         joinedAt,
         inChannel,
+        lang,
         payload,
         now,
       ],
@@ -164,18 +224,20 @@ const put_user_data = async (user_id, data) => {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ İstifadəçi Məlumatları Yazılmadı\n\n${error}\n\n#error`,
+      t(null, "messages.userDataWriteFailOwner", { error }),
     );
   }
 };
 const get_all_data = async () => {
   try {
     const db = await dbPromise;
-    const rows = await db.all("SELECT user_id, data FROM users");
+    const rows = await db.all("SELECT user_id, data, lang FROM users");
     const all_data = {};
     for (const row of rows) {
       try {
-        all_data[row.user_id] = JSON.parse(row.data);
+        const parsed = JSON.parse(row.data);
+        if (!parsed.lang && row.lang) parsed.lang = row.lang;
+        all_data[row.user_id] = parsed;
       } catch (e) {
         all_data[row.user_id] = {};
       }
@@ -185,7 +247,7 @@ const get_all_data = async () => {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Bütün İstifadəçi Məlumatları Alınamadı\n\n${error}\n\n#error`,
+      t(null, "messages.allUsersReadFailOwner", { error }),
     );
     return {};
   }
@@ -193,38 +255,38 @@ const get_all_data = async () => {
 const send_invoice_for_pocket = async (ctx, amount) => {
   try {
     let invoice = {
-      title: `Pulqabına Ulduz əlavə et`,
-      description: `Zəhmət olmasa Məzmuna Giriş Üçün Pulqabına ${amount} Ulduz Əlavə Et`,
+      title: t(ctx, "messages.invoiceTitle"),
+      description: t(ctx, "messages.invoicePocketDescription", { amount }),
       payload: "invoice_payload",
       start_parameter: "start",
       currency: "XTR",
-      prices: [{ label: "Item", amount: amount }],
+      prices: [{ label: t(ctx, "messages.invoiceItemLabel"), amount: amount }],
     };
     await ctx.replyWithInvoice(invoice);
   } catch (error) {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Fatura Gönderilemedi\n\n${error}\n\n#error`,
+      t(null, "messages.invoiceSendFailOwner", { error }),
     );
   }
 };
 const send_invoice_for_increase = async (ctx, amount) => {
   try {
     let invoice = {
-      title: `Pulqabına Ulduz əlavə et`,
-      description: `Zəhmət olmasa Pulqabına ${amount} Ulduz Əlavə Etmək Üçün Ödəniş Et`,
+      title: t(ctx, "messages.invoiceTitle"),
+      description: t(ctx, "messages.invoiceIncreaseDescription", { amount }),
       payload: "invoice_payload",
       start_parameter: "start",
       currency: "XTR",
-      prices: [{ label: "Item", amount: amount }],
+      prices: [{ label: t(ctx, "messages.invoiceItemLabel"), amount: amount }],
     };
     await ctx.replyWithInvoice(invoice);
   } catch (error) {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Fatura Gönderilemedi\n\n${error}\n\n#error`,
+      t(null, "messages.invoiceSendFailOwner", { error }),
     );
   }
 };
@@ -242,10 +304,21 @@ bot.start(async (ctx) => {
             ? config_data.star_per_invite
             : 2 * config_data.star_per_invite,
         user_invites: [config_data.owner_id],
+        lang: ctx.session.lang,
       });
       await bot.telegram.sendMessage(
         config_data.owner_id,
-        `✅ Yeni İstifadəçi Qoşuldu!\n\n➕ Yeni İstifadəçi: [İstifadəçini Gör](tg://user?id=${user_id})\n\n🔗 İstifadəçini Dəvət Etdi: [${invite_from_id == config_data.owner_id ? "Bot Sahibi" : invite_from_id == undefined ? "Sahib" : "İstifadəçini Gör"}](tg://user?id=${invite_from_id == undefined ? config_data.owner_id : invite_from_id})\n\n#newuserjoined`,
+        t(null, "messages.newUserJoinedOwner", {
+          user_id,
+          inviter_label:
+            invite_from_id == config_data.owner_id
+              ? t(ctx, "labels.owner")
+              : invite_from_id == undefined
+                ? t(ctx, "labels.admin")
+                : t(ctx, "labels.viewUser"),
+          inviter_id:
+            invite_from_id == undefined ? config_data.owner_id : invite_from_id,
+        }),
         { parse_mode: "Markdown" },
       );
       if (invite_from_id != undefined) {
@@ -258,33 +331,26 @@ bot.start(async (ctx) => {
             user_invites: [...user_data.user_invites, user_id],
           };
           await put_user_data(invite_from_id, new_data);
+          const inviterLang =
+            user_data && typeof user_data.lang === "string"
+              ? user_data.lang
+              : "az";
           await bot.telegram.sendMessage(
             invite_from_id,
-            `✅ Təbriklər!\n\n🔗 Dəvət Etdiyin [İstifadəçini Gör](tg://user?id=${ctx.from.id}) İstifadəçisi Botumuza Qoşuldu!\n\n🌟 ${config_data.star_per_invite} Ulduz Qazandın!\n\n💸 İndiki Balans: ${new_data.user_balance} 🌟`,
+            i18n.t(inviterLang, "messages.inviteRewardUser", {
+              new_user_id: ctx.from.id,
+              star_per_invite: config_data.star_per_invite,
+              balance: new_data.user_balance,
+            }),
             { parse_mode: "Markdown" },
           );
         }
       }
     } else {
     }
-    let main_menu_buttons = Markup.inlineKeyboard([
-      [
-        Markup.button.url(
-          "🔗  Dəvət Et Pulsuz Al  🔗",
-          `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${user_id}`)}`,
-        ),
-      ],
-      [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-      [Markup.button.url("💋  Özəl Söhbət  💋", "https://t.me/narmin_alyvaa")],
-      [
-        Markup.button.callback("🍑  Paketlər  🍑", "content"),
-        Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-      ],
-      [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-    ]);
+    let main_menu_buttons = buildMainMenuButtons(ctx, user_id);
     await ctx.replyWithPhoto(config_data.profile_photo_id, {
-      caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+      caption: getMainMenuCaption(ctx, "full"),
       parse_mode: "Markdown",
       ...main_menu_buttons,
     });
@@ -292,7 +358,7 @@ bot.start(async (ctx) => {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Başlatma Xətası\n\n${error}\n\n#error`,
+      t(null, "messages.startupFailOwner", { error }),
     );
   }
 });
@@ -303,73 +369,93 @@ bot.on("chat_join_request", async (ctx) => {
       let main_menu_buttons = Markup.inlineKeyboard([
         [
           Markup.button.url(
-            "🔐  Yönləndir (1/5)  🔐",
+            t(ctx, "buttons.redirect"),
             `https://t.me/share/url?url=${encodeURIComponent(`${config_data.channel_url}`)}`,
           ),
         ],
         [
           Markup.button.url(
-            "✅  Etdim  ✅",
+            t(ctx, "buttons.done"),
             `https://t.me/${config_data.bot_username}?start=start`,
           ),
         ],
       ]);
       await bot.telegram.sendPhoto(userId, config_data.profile_photo_id, {
-        caption: `👋🏻 Salam Balam Xoş Gəldin\n\n🔞 Özəl Tam Açıq Videolarım, Şəkillərim, Arxivlərim, Video Zəng Yayımlarım Hamısı Premium Kanalımdadır!\n\n👇🏻 Məzmunlarımı Aşağıdakı Kanalda Görə Bilərsən!\n\n🔗 Kanal: [${config_data.channel_url}]\n\n⚠️ Diqqət Kanala Qoşulma İstəyinin Təsdiqlənməsi Üçün 5 Dəqiqə Ərzində Yönləndir Düyməsinə Toxunaraq 5 Dəfə Yönləndir!`,
+        caption: t(ctx, "captions.joinRequest", {
+          channel_url: config_data.channel_url,
+        }),
         parse_mode: "Markdown",
         ...main_menu_buttons,
       });
 
       await bot.telegram.sendMessage(
         config_data.owner_id,
-        `📢 Kanala Qoşulma İstəyi Üçün Mesaj Göndərildi\n\n#joinchannelmessage`,
+        t(null, "messages.joinRequestSentOwner"),
       );
     }
   } catch (error) {
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌Mesaj Göndərilmədi\n\n${error}\n\n#error`,
+      t(null, "messages.joinRequestFailOwner", { error }),
     );
   }
 });
 bot.action("content", async (ctx) => {
   try {
     const content_menu_buttons = Markup.inlineKeyboard([
-      [
-        Markup.button.url(
-          "🔗  Dəvət Et Pulsuz Al  🔗",
-          `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-        ),
-      ],
-      [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
+      [Markup.button.url(t(ctx, "buttons.invite"), getInviteUrl(ctx.from.id))],
+      [Markup.button.callback(t(ctx, "buttons.vipChannel"), "wip_channel")],
       [
         Markup.button.callback(
-          `🍑  Paket 1 - ${contect_data.pocket_1.price}  🍑`,
+          t(ctx, "buttons.pocketBuy", {
+            n: 1,
+            price: contect_data.pocket_1.price,
+          }),
           "pocket_1",
         ),
         Markup.button.callback(
-          `🍑  Paket 2 - ${contect_data.pocket_2.price}  🍑`,
+          t(ctx, "buttons.pocketBuy", {
+            n: 2,
+            price: contect_data.pocket_2.price,
+          }),
           "pocket_2",
         ),
       ],
       [
         Markup.button.callback(
-          `🍑  Paket 3 - ${contect_data.pocket_3.price}  🍑`,
+          t(ctx, "buttons.pocketBuy", {
+            n: 3,
+            price: contect_data.pocket_3.price,
+          }),
           "pocket_3",
         ),
         Markup.button.callback(
-          `🍑  Paket 4 - ${contect_data.pocket_4.price}  🍑`,
+          t(ctx, "buttons.pocketBuy", {
+            n: 4,
+            price: contect_data.pocket_4.price,
+          }),
           "pocket_4",
         ),
       ],
-      [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🏠  Ana Səhifə  🏠", "home")],
+      [Markup.button.callback(t(ctx, "buttons.wallet"), "wallet")],
+      [Markup.button.callback(t(ctx, "buttons.home"), "home")],
     ]);
     await ctx.editMessageMedia(
       {
         type: "photo",
         media: config_data.profile_photo_id,
-        caption: `👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🍑 Paket 1: ${contect_data.pocket_1.photo.length} Şəkil - Qiymət ${contect_data.pocket_1.price}🌟\n\n🍑 Paket 2: ${contect_data.pocket_2.video.length} video - Qiymət ${contect_data.pocket_2.price}🌟\n\n🍑 Paket 3: ${contect_data.pocket_3.photo.length} Şəkil, ${contect_data.pocket_3.video.length} Video - Qiymət ${contect_data.pocket_3.price}🌟\n\n🍑 Paket 4: ${contect_data.pocket_4.photo.length} Şəkil, ${contect_data.pocket_4.video.length} Video - Qiymət ${contect_data.pocket_4.price}🌟`,
+        caption: t(ctx, "captions.contentMenu", {
+          p1_photos: contect_data.pocket_1.photo.length,
+          p1_price: contect_data.pocket_1.price,
+          p2_videos: contect_data.pocket_2.video.length,
+          p2_price: contect_data.pocket_2.price,
+          p3_photos: contect_data.pocket_3.photo.length,
+          p3_videos: contect_data.pocket_3.video.length,
+          p3_price: contect_data.pocket_3.price,
+          p4_photos: contect_data.pocket_4.photo.length,
+          p4_videos: contect_data.pocket_4.video.length,
+          p4_price: contect_data.pocket_4.price,
+        }),
       },
       content_menu_buttons,
     );
@@ -378,47 +464,59 @@ bot.action("content", async (ctx) => {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Paketlər Menü Gönderəmedi\n\n${error}\n\n#error`,
+      t(null, "messages.contentMenuFailOwner", { error }),
     );
   }
 });
 bot.action("show", async (ctx) => {
   try {
     const show_menu_buttons = Markup.inlineKeyboard([
-      [
-        Markup.button.url(
-          "🔗  Dəvət Et Pulsuz Al  🔗",
-          `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-        ),
-      ],
-      [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
+      [Markup.button.url(t(ctx, "buttons.invite"), getInviteUrl(ctx.from.id))],
+      [Markup.button.callback(t(ctx, "buttons.vipChannel"), "wip_channel")],
       [
         Markup.button.callback(
-          `🥵  Paket 1 - ${contect_data.s_pocket_1.price}  🥵`,
+          t(ctx, "buttons.showBuy", {
+            n: 1,
+            price: contect_data.s_pocket_1.price,
+          }),
           "show_1",
         ),
         Markup.button.callback(
-          `🥵  Paket 2 - ${contect_data.s_pocket_2.price}  🥵`,
+          t(ctx, "buttons.showBuy", {
+            n: 2,
+            price: contect_data.s_pocket_2.price,
+          }),
           "show_2",
         ),
       ],
       [
         Markup.button.callback(
-          `🥵  Paket 3 - ${contect_data.s_pocket_3.price}  🥵`,
+          t(ctx, "buttons.showBuy", {
+            n: 3,
+            price: contect_data.s_pocket_3.price,
+          }),
           "show_3",
         ),
         Markup.button.callback(
-          `🥵  Paket 4 - ${contect_data.s_pocket_4.price}  🥵`,
+          t(ctx, "buttons.showBuy", {
+            n: 4,
+            price: contect_data.s_pocket_4.price,
+          }),
           "show_4",
         ),
       ],
-      [Markup.button.callback("🏠  Ana Səhifə  🏠", "home")],
+      [Markup.button.callback(t(ctx, "buttons.home"), "home")],
     ]);
     await ctx.editMessageMedia(
       {
         type: "photo",
         media: config_data.profile_photo_id,
-        caption: `👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🥵 Paket 1: 5 Dəqiqə Video Zəng - Qiymət ${contect_data.s_pocket_1.price}🌟\n\n🥵 Paket 2: 10 Dəqiqə Video Zəng - Qiymət ${contect_data.s_pocket_2.price}🌟\n\n🥵 Paket 3: 20 Dəqiqə Video Zəng - Qiymət ${contect_data.s_pocket_3.price}🌟\n\n🥵 Paket 4: 30 Dəqiqə Video Zəng - Qiymət ${contect_data.s_pocket_4.price}🌟`,
+        caption: t(ctx, "captions.showMenu", {
+          s1_price: contect_data.s_pocket_1.price,
+          s2_price: contect_data.s_pocket_2.price,
+          s3_price: contect_data.s_pocket_3.price,
+          s4_price: contect_data.s_pocket_4.price,
+        }),
       },
       show_menu_buttons,
     );
@@ -427,34 +525,18 @@ bot.action("show", async (ctx) => {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Video Zəng Paketləri Menü Gönderəmedi\n\n${error}\n\n#error`,
+      t(null, "messages.showMenuFailOwner", { error }),
     );
   }
 });
 bot.action("home", async (ctx) => {
   try {
-    const home_menu_buttons = Markup.inlineKeyboard([
-      [
-        Markup.button.url(
-          "🔗  Dəvət Et Pulsuz Al  🔗",
-          `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-        ),
-      ],
-      [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-      [Markup.button.url("💋  Özəl Söhbət  💋", "https://t.me/narmin_alyvaa")],
-      [
-        Markup.button.callback("🍑  Paketlər  🍑", "content"),
-        Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-      ],
-      [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-    ]);
+    const home_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
     await ctx.editMessageMedia(
       {
         type: "photo",
         media: config_data.profile_photo_id,
-        caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+        caption: getMainMenuCaption(ctx, "full"),
       },
       home_menu_buttons,
     );
@@ -463,7 +545,7 @@ bot.action("home", async (ctx) => {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Ana Menü Gönderəmedi\n\n${error}\n\n#error`,
+      t(null, "messages.homeMenuFailOwner", { error }),
     );
   }
 });
@@ -471,32 +553,49 @@ bot.action("wallet", async (ctx) => {
   try {
     const user_data = await get_user_data(ctx.from.id);
     const wallet_menu_buttons = Markup.inlineKeyboard([
+      [Markup.button.url(t(ctx, "buttons.invite"), getInviteUrl(ctx.from.id))],
+      [Markup.button.callback(t(ctx, "buttons.vipChannel"), "wip_channel")],
       [
-        Markup.button.url(
-          "🔗  Dəvət Et Pulsuz Al  🔗",
-          `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
+        Markup.button.callback(
+          t(ctx, "buttons.starAmount", { amount: 1 }),
+          "buy_1",
+        ),
+        Markup.button.callback(
+          t(ctx, "buttons.starAmount", { amount: 100 }),
+          "buy_100",
         ),
       ],
-      [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
       [
-        Markup.button.callback("🌟  1 Ulduz  🌟", "buy_1"),
-        Markup.button.callback("🌟  100 Ulduz  🌟", "buy_100"),
+        Markup.button.callback(
+          t(ctx, "buttons.starAmount", { amount: 250 }),
+          "buy_250",
+        ),
+        Markup.button.callback(
+          t(ctx, "buttons.starAmount", { amount: 500 }),
+          "buy_500",
+        ),
       ],
       [
-        Markup.button.callback("🌟  250 Ulduz  🌟", "buy_250"),
-        Markup.button.callback("🌟  500 Ulduz  🌟", "buy_500"),
+        Markup.button.callback(
+          t(ctx, "buttons.starAmount", { amount: 1000 }),
+          "buy_1000",
+        ),
+        Markup.button.callback(
+          t(ctx, "buttons.starAmount", { amount: 2500 }),
+          "buy_2500",
+        ),
       ],
-      [
-        Markup.button.callback("🌟  1000 Ulduz  🌟", "buy_1000"),
-        Markup.button.callback("🌟  2500 Ulduz  🌟", "buy_2500"),
-      ],
-      [Markup.button.callback("🏠  Ana Səhifə  🏠", "home")],
+      [Markup.button.callback(t(ctx, "buttons.home"), "home")],
     ]);
     await ctx.editMessageMedia(
       {
         type: "photo",
         media: config_data.profile_photo_id,
-        caption: `💸 Hesab Balansı: ${user_data.user_balance} 🌟\n\n➕ Dəvət Edilən Şəxs Sayı: ${user_data.user_invites.length} Nəfər\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!\n\n🌟 İstədiyin Ulduz Miqdarına Toxunaraq Ulduz Satın Al`,
+        caption: t(ctx, "captions.wallet", {
+          balance: user_data.user_balance,
+          invite_count: user_data.user_invites.length,
+          star_per_invite: config_data.star_per_invite,
+        }),
       },
       wallet_menu_buttons,
     );
@@ -505,7 +604,7 @@ bot.action("wallet", async (ctx) => {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Pulqabı Menü Gönderəmedi\n\n${error}\n\n#error`,
+      t(null, "messages.walletMenuFailOwner", { error }),
     );
   }
 });
@@ -514,38 +613,59 @@ bot.action("wip_channel", async (ctx) => {
     const content_wip_menu_buttons = Markup.inlineKeyboard([
       [
         Markup.button.callback(
-          `👑  Həmişəlik - ${contect_data.wip_channel_price_lifetime}  👑`,
+          t(ctx, "buttons.vipBuy", {
+            label: t(ctx, "labels.lifetime"),
+            price: contect_data.wip_channel_price_lifetime,
+          }),
           `buy_wip_channel_lifetime`,
         ),
       ],
       [
         Markup.button.callback(
-          `👑  Həftəlik - ${contect_data.wip_channel_price_weekly}  👑`,
+          t(ctx, "buttons.vipBuy", {
+            label: t(ctx, "labels.weekly"),
+            price: contect_data.wip_channel_price_weekly,
+          }),
           `buy_wip_channel_weekly`,
         ),
         Markup.button.callback(
-          `👑  15 Günlük - ${contect_data.wip_channel_price_15days}  👑`,
+          t(ctx, "buttons.vipBuy", {
+            label: t(ctx, "labels.days15"),
+            price: contect_data.wip_channel_price_15days,
+          }),
           `buy_wip_channel_15days`,
         ),
       ],
       [
         Markup.button.callback(
-          `👑  Aylıq - ${contect_data.wip_channel_price_monthly}  👑`,
+          t(ctx, "buttons.vipBuy", {
+            label: t(ctx, "labels.monthly"),
+            price: contect_data.wip_channel_price_monthly,
+          }),
           `buy_wip_channel_monthly`,
         ),
         Markup.button.callback(
-          `👑  3 Aylıq - ${contect_data.wip_channel_price_3monthly}  👑`,
+          t(ctx, "buttons.vipBuy", {
+            label: t(ctx, "labels.months3"),
+            price: contect_data.wip_channel_price_3monthly,
+          }),
           `buy_wip_channel_3monthly`,
         ),
       ],
-      [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🏠  Ana Səhifə  🏠", "home")],
+      [Markup.button.callback(t(ctx, "buttons.wallet"), "wallet")],
+      [Markup.button.callback(t(ctx, "buttons.home"), "home")],
     ]);
     await ctx.editMessageMedia(
       {
         type: "photo",
         media: config_data.profile_photo_id,
-        caption: `👑 Həmişəlik - ${contect_data.wip_channel_price_lifetime} 🌟\n\n👑 Həftəlik - ${contect_data.wip_channel_price_weekly} 🌟\n\n👑 15 Günlük - ${contect_data.wip_channel_price_15days} 🌟\n\n👑 Aylıq - ${contect_data.wip_channel_price_monthly} 🌟\n\n👑 3 Aylıq - ${contect_data.wip_channel_price_3monthly} 🌟`,
+        caption: t(ctx, "captions.vipMenu", {
+          lifetime: contect_data.wip_channel_price_lifetime,
+          weekly: contect_data.wip_channel_price_weekly,
+          days15: contect_data.wip_channel_price_15days,
+          monthly: contect_data.wip_channel_price_monthly,
+          months3: contect_data.wip_channel_price_3monthly,
+        }),
       },
       content_wip_menu_buttons,
     );
@@ -554,415 +674,120 @@ bot.action("wip_channel", async (ctx) => {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ VIP Kanal Menü Gönderəmedi\n\n${error}\n\n#error`,
+      t(null, "messages.vipMenuFailOwner", { error }),
     );
   }
 });
 bot.action(/buy_wip_channel_(.+)/, async (ctx) => {
   try {
     const type = ctx.match[1];
-    const user_data = await get_user_data(ctx.from.id);
+    const plans = {
+      lifetime: {
+        price: contect_data.wip_channel_price_lifetime,
+        is_vip: true,
+        expires_at: null,
+        tag: "vipchannelbuyedlifetime",
+      },
+      weekly: {
+        price: contect_data.wip_channel_price_weekly,
+        is_vip: false,
+        expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
+        tag: "vipchannelbuyedweekly",
+      },
+      "15days": {
+        price: contect_data.wip_channel_price_15days,
+        is_vip: false,
+        expires_at: Date.now() + 15 * 24 * 60 * 60 * 1000,
+        tag: "vipchannelbuyed15days",
+      },
+      monthly: {
+        price: contect_data.wip_channel_price_monthly,
+        is_vip: false,
+        expires_at: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        tag: "vipchannelbuyedmonthly",
+      },
+      "3monthly": {
+        price: contect_data.wip_channel_price_3monthly,
+        is_vip: false,
+        expires_at: Date.now() + 90 * 24 * 60 * 60 * 1000,
+        tag: "vipchannelbuyed3monthly",
+      },
+    };
 
-    switch (type) {
-      case "lifetime":
-        if (user_data.user_balance < contect_data.wip_channel_price_lifetime) {
-          await ctx.answerCbQuery(
-            "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-            { show_alert: true },
-          );
-          await send_invoice_for_pocket(
-            ctx,
-            contect_data.wip_channel_price_lifetime - user_data.user_balance,
-          );
-        } else {
-          const geted_user_data = await get_user_data(ctx.from.id);
-          let new_data = await {
-            ...geted_user_data,
-            user_balance:
-              geted_user_data.user_balance -
-              contect_data.wip_channel_price_lifetime,
-            is_vip: true,
-            expires_at: false,
-            joined_at: Date.now(),
-            in_channel: true,
-          };
-          await put_user_data(ctx.from.id, new_data);
-          await bot.telegram.sendMessage(
-            config_data.owner_id,
-            `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) VIP KANAL Satın Aldı\n\n#vipchannelbuyedlifetime`,
-            { parse_mode: "Markdown" },
-          );
-          await ctx.answerCbQuery("✅ Təbriklər VIP KANAL Uğurla Alındı!");
-          const inviteLink = await ctx.telegram.createChatInviteLink(
-            "-1003580607918",
-            {
-              member_limit: 1,
-              expire_date: Math.floor(Date.now() / 1000) + 600,
-            },
-          );
-          await ctx.reply(
-            `🎉 Ödəniş Uğurlu!\n\n⚠️ Diqqət Dəvət Linkini Paylaşma!\n\n👑 Dəvət Linki yalnız 1 Nəfər Üçün Keçərlidir!\n\n🔗 ${inviteLink.invite_link}`,
-          );
-          setTimeout(async () => {
-            try {
-              let main_menu_buttons = Markup.inlineKeyboard([
-                [
-                  Markup.button.url(
-                    "🔗  Dəvət Et Pulsuz Al  🔗",
-                    `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-                  ),
-                ],
-                [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-                [
-                  Markup.button.url(
-                    "💋  Özəl Söhbət  💋",
-                    "https://t.me/narmin_alyvaa",
-                  ),
-                ],
-                [
-                  Markup.button.callback("🍑  Paketlər  🍑", "content"),
-                  Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-                ],
-                [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-                [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-              ]);
-              await ctx.replyWithPhoto(config_data.profile_photo_id, {
-                caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
-                parse_mode: "Markdown",
-                ...main_menu_buttons,
-              });
-            } catch (error) {
-              console.log(error);
-              bot.telegram.sendMessage(
-                config_data.owner_id,
-                `❌ VIP Kanal Satın Alma Sonrası Mesaj Gönderilemedi\n\n${error}\n\n#error`,
-              );
-            }
-          }, 5000);
-        }
-        break;
-      case "weekly":
-        if (user_data.user_balance < contect_data.wip_channel_price_weekly) {
-          await ctx.answerCbQuery(
-            "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-            { show_alert: true },
-          );
-          await send_invoice_for_pocket(
-            ctx,
-            contect_data.wip_channel_price_weekly - user_data.user_balance,
-          );
-        } else {
-          const geted_user_data = await get_user_data(ctx.from.id);
-          let new_data = await {
-            ...geted_user_data,
-            user_balance:
-              geted_user_data.user_balance -
-              contect_data.wip_channel_price_weekly,
-            is_vip: false,
-            expires_at: Date.now() + 7 * 24 * 60 * 60 * 1000,
-            joined_at: Date.now(),
-            in_channel: true,
-          };
-          await put_user_data(ctx.from.id, new_data);
-          await bot.telegram.sendMessage(
-            config_data.owner_id,
-            `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) VIP KANAL Satın Aldı\n\n#vipchannelbuyedweekly`,
-            { parse_mode: "Markdown" },
-          );
-          await ctx.answerCbQuery("✅ Təbriklər VIP KANAL Uğurla Alındı!");
-          const inviteLink = await ctx.telegram.createChatInviteLink(
-            "-1003580607918",
-            {
-              member_limit: 1,
-              expire_date: Math.floor(Date.now() / 1000) + 600,
-            },
-          );
-          await ctx.reply(
-            `🎉 Ödəniş Uğurlu!\n\n⚠️ Diqqət Dəvət Linkini Paylaşma!\n\n👑 Dəvət Linki yalnız 1 Nəfər Üçün Keçərlidir!\n\n🔗 ${inviteLink.invite_link}`,
-          );
-          setTimeout(async () => {
-            try {
-              let main_menu_buttons = Markup.inlineKeyboard([
-                [
-                  Markup.button.url(
-                    "🔗  Dəvət Et Pulsuz Al  🔗",
-                    `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-                  ),
-                ],
-                [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-                [
-                  Markup.button.url(
-                    "💋  Özəl Söhbət  💋",
-                    "https://t.me/narmin_alyvaa",
-                  ),
-                ],
-                [
-                  Markup.button.callback("🍑  Paketlər  🍑", "content"),
-                  Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-                ],
-                [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-              ]);
-              await ctx.replyWithPhoto(config_data.profile_photo_id, {
-                caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
-                parse_mode: "Markdown",
-                ...main_menu_buttons,
-              });
-            } catch (error) {
-              console.log(error);
-              bot.telegram.sendMessage(
-                config_data.owner_id,
-                `❌ VIP Kanal Satın Alma Sonrası Mesaj Gönderilemedi\n\n${error}\n\n#error`,
-              );
-            }
-          }, 5000);
-        }
-        break;
-      case "15days":
-        if (user_data.user_balance < contect_data.wip_channel_price_15days) {
-          await ctx.answerCbQuery(
-            "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-            { show_alert: true },
-          );
-          await send_invoice_for_pocket(
-            ctx,
-            contect_data.wip_channel_price_15days - user_data.user_balance,
-          );
-        } else {
-          const geted_user_data = await get_user_data(ctx.from.id);
-          let new_data = await {
-            ...geted_user_data,
-            user_balance:
-              geted_user_data.user_balance -
-              contect_data.wip_channel_price_15days,
-            is_vip: false,
-            expires_at: Date.now() + 15 * 24 * 60 * 60 * 1000,
-            joined_at: Date.now(),
-            in_channel: true,
-          };
-          await put_user_data(ctx.from.id, new_data);
-          await bot.telegram.sendMessage(
-            config_data.owner_id,
-            `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) VIP KANAL Satın Aldı\n\n#vipchannelbuyed15days`,
-            { parse_mode: "Markdown" },
-          );
-          await ctx.answerCbQuery("✅ Təbriklər VIP KANAL Uğurla Alındı!");
-          const inviteLink = await ctx.telegram.createChatInviteLink(
-            "-1003580607918",
-            {
-              member_limit: 1,
-              expire_date: Math.floor(Date.now() / 1000) + 600,
-            },
-          );
-          await ctx.reply(
-            `🎉 Ödəniş Uğurlu!\n\n⚠️ Diqqət Dəvət Linkini Paylaşma!\n\n👑 Dəvət Linki yalnız 1 Nəfər Üçün Keçərlidir!\n\n🔗 ${inviteLink.invite_link}`,
-          );
-          setTimeout(async () => {
-            try {
-              let main_menu_buttons = Markup.inlineKeyboard([
-                [
-                  Markup.button.url(
-                    "🔗  Dəvət Et Pulsuz Al  🔗",
-                    `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-                  ),
-                ],
-                [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-                [
-                  Markup.button.url(
-                    "💋  Özəl Söhbət  💋",
-                    "https://t.me/narmin_alyvaa",
-                  ),
-                ],
-                [
-                  Markup.button.callback("🍑  Paketlər  🍑", "content"),
-                  Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-                ],
-                [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-              ]);
-              await ctx.replyWithPhoto(config_data.profile_photo_id, {
-                caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
-                parse_mode: "Markdown",
-                ...main_menu_buttons,
-              });
-            } catch (error) {
-              console.log(error);
-              bot.telegram.sendMessage(
-                config_data.owner_id,
-                `❌ VIP Kanal Satın Alma Sonrası Mesaj Gönderilemedi\n\n${error}\n\n#error`,
-              );
-            }
-          }, 5000);
-        }
-        break;
-      case "monthly":
-        if (user_data.user_balance < contect_data.wip_channel_price_monthly) {
-          await ctx.answerCbQuery(
-            "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-            { show_alert: true },
-          );
-          await send_invoice_for_pocket(
-            ctx,
-            contect_data.wip_channel_price_monthly - user_data.user_balance,
-          );
-        } else {
-          const geted_user_data = await get_user_data(ctx.from.id);
-          let new_data = await {
-            ...geted_user_data,
-            user_balance:
-              geted_user_data.user_balance -
-              contect_data.wip_channel_price_monthly,
-            is_vip: false,
-            expires_at: Date.now() + 30 * 24 * 60 * 60 * 1000,
-            joined_at: Date.now(),
-            in_channel: true,
-          };
-          await put_user_data(ctx.from.id, new_data);
-          await bot.telegram.sendMessage(
-            config_data.owner_id,
-            `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) VIP KANAL Satın Aldı\n\n#vipchannelbuyedmonthly`,
-            { parse_mode: "Markdown" },
-          );
-          await ctx.answerCbQuery("✅ Təbriklər VIP KANAL Uğurla Alındı!");
-          const inviteLink = await ctx.telegram.createChatInviteLink(
-            "-1003580607918",
-            {
-              member_limit: 1,
-              expire_date: Math.floor(Date.now() / 1000) + 600,
-            },
-          );
-          await ctx.reply(
-            `🎉 Ödəniş Uğurlu!\n\n⚠️ Diqqət Dəvət Linkini Paylaşma!\n\n👑 Dəvət Linki yalnız 1 Nəfər Üçün Keçərlidir!\n\n🔗 ${inviteLink.invite_link}`,
-          );
-          setTimeout(async () => {
-            try {
-              let main_menu_buttons = Markup.inlineKeyboard([
-                [
-                  Markup.button.url(
-                    "🔗  Dəvət Et Pulsuz Al  🔗",
-                    `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-                  ),
-                ],
-                [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-                [
-                  Markup.button.url(
-                    "💋  Özəl Söhbət  💋",
-                    "https://t.me/narmin_alyvaa",
-                  ),
-                ],
-                [
-                  Markup.button.callback("🍑  Paketlər  🍑", "content"),
-                  Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-                ],
-                [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-              ]);
-              await ctx.replyWithPhoto(config_data.profile_photo_id, {
-                caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
-                parse_mode: "Markdown",
-                ...main_menu_buttons,
-              });
-            } catch (error) {
-              console.log(error);
-              bot.telegram.sendMessage(
-                config_data.owner_id,
-                `❌ VIP Kanal Satın Alma Sonrası Mesaj Gönderilemedi\n\n${error}\n\n#error`,
-              );
-            }
-          }, 5000);
-        }
-        break;
-      case "3monthly":
-        if (user_data.user_balance < contect_data.wip_channel_price_3monthly) {
-          await ctx.answerCbQuery(
-            "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-            { show_alert: true },
-          );
-          await send_invoice_for_pocket(
-            ctx,
-            contect_data.wip_channel_price_3monthly - user_data.user_balance,
-          );
-        } else {
-          const geted_user_data = await get_user_data(ctx.from.id);
-          let new_data = await {
-            ...geted_user_data,
-            user_balance:
-              geted_user_data.user_balance -
-              contect_data.wip_channel_price_3monthly,
-            is_vip: false,
-            expires_at: Date.now() + 90 * 24 * 60 * 60 * 1000,
-            joined_at: Date.now(),
-            in_channel: true,
-          };
-          await put_user_data(ctx.from.id, new_data);
-          await bot.telegram.sendMessage(
-            config_data.owner_id,
-            `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) VIP KANAL Satın Aldı\n\n#vipchannelbuyed3monthly`,
-            { parse_mode: "Markdown" },
-          );
-          await ctx.answerCbQuery("✅ Təbriklər VIP KANAL Uğurla Alındı!");
-          const inviteLink = await ctx.telegram.createChatInviteLink(
-            "-1003580607918",
-            {
-              member_limit: 1,
-              expire_date: Math.floor(Date.now() / 1000) + 600,
-            },
-          );
-          await ctx.reply(
-            `🎉 Ödəniş Uğurlu!\n\n⚠️ Diqqət Dəvət Linkini Paylaşma!\n\n👑 Dəvət Linki yalnız 1 Nəfər Üçün Keçərlidir!\n\n🔗 ${inviteLink.invite_link}`,
-          );
-          setTimeout(async () => {
-            try {
-              let main_menu_buttons = Markup.inlineKeyboard([
-                [
-                  Markup.button.url(
-                    "🔗  Dəvət Et Pulsuz Al  🔗",
-                    `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-                  ),
-                ],
-                [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-                [
-                  Markup.button.url(
-                    "💋  Özəl Söhbət  💋",
-                    "https://t.me/narmin_alyvaa",
-                  ),
-                ],
-                [
-                  Markup.button.callback("🍑  Paketlər  🍑", "content"),
-                  Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-                ],
-                [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-              ]);
-              await ctx.replyWithPhoto(config_data.profile_photo_id, {
-                caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
-                parse_mode: "Markdown",
-                ...main_menu_buttons,
-              });
-            } catch (error) {
-              console.log(error);
-              bot.telegram.sendMessage(
-                config_data.owner_id,
-                `❌ VIP Kanal Satın Alma Sonrası Mesaj Gönderilemedi\n\n${error}\n\n#error`,
-              );
-            }
-          }, 5000);
-        }
-        break;
-      default:
-        await ctx.answerCbQuery("❌ Geçersiz Seçenek!");
-        break;
+    const plan = plans[type];
+    if (!plan) {
+      await ctx.answerCbQuery(t(ctx, "alerts.invalidOption"), {
+        show_alert: true,
+      });
+      return;
     }
+
+    const user_data = await get_user_data(ctx.from.id);
+    if (user_data.user_balance < plan.price) {
+      await ctx.answerCbQuery(t(ctx, "alerts.insufficientBalance"), {
+        show_alert: true,
+      });
+      await send_invoice_for_pocket(ctx, plan.price - user_data.user_balance);
+      return;
+    }
+
+    const geted_user_data = await get_user_data(ctx.from.id);
+    let new_data = await {
+      ...geted_user_data,
+      user_balance: geted_user_data.user_balance - plan.price,
+      is_vip: plan.is_vip,
+      expires_at: plan.is_vip ? false : plan.expires_at,
+      joined_at: Date.now(),
+      in_channel: true,
+    };
+    await put_user_data(ctx.from.id, new_data);
+
+    await bot.telegram.sendMessage(
+      config_data.owner_id,
+      t(null, "messages.vipBoughtOwner", {
+        user_id: ctx.from.id,
+        tag: plan.tag,
+      }),
+      { parse_mode: "Markdown" },
+    );
+
+    await ctx.answerCbQuery(t(ctx, "messages.vipBoughtSuccess"));
+
+    const inviteLink = await ctx.telegram.createChatInviteLink(
+      config_data.channel_id,
+      {
+        member_limit: 1,
+        expire_date: Math.floor(Date.now() / 1000) + 600,
+      },
+    );
+
+    await ctx.reply(
+      t(ctx, "messages.vipPaymentSuccessWithInvite", {
+        invite_link: inviteLink.invite_link,
+      }),
+    );
+
+    setTimeout(async () => {
+      try {
+        const main_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
+        await ctx.replyWithPhoto(config_data.profile_photo_id, {
+          caption: getMainMenuCaption(ctx, "full"),
+          parse_mode: "Markdown",
+          ...main_menu_buttons,
+        });
+      } catch (error) {
+        console.log(error);
+        bot.telegram.sendMessage(
+          config_data.owner_id,
+          t(null, "messages.vipAfterBuyFailOwner", { error }),
+        );
+      }
+    }, 5000);
   } catch (error) {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ VIP Kanal Satın Alma İşlemi Başarısız Oldu\n\n${error}\n\n#error`,
+      t(null, "messages.vipBuyFailOwner", { error }),
     );
   }
 });
@@ -973,10 +798,9 @@ bot.action(/pocket_(.+)/, async (ctx) => {
   switch (pocket) {
     case "1":
       if (user_data.user_balance < contect_data.pocket_1.price) {
-        await ctx.answerCbQuery(
-          "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-          { show_alert: true },
-        );
+        await ctx.answerCbQuery(t(ctx, "alerts.insufficientBalance"), {
+          show_alert: true,
+        });
         await send_invoice_for_pocket(
           ctx,
           contect_data.pocket_1.price - user_data.user_balance,
@@ -991,10 +815,13 @@ bot.action(/pocket_(.+)/, async (ctx) => {
         await put_user_data(ctx.from.id, new_data);
         await bot.telegram.sendMessage(
           config_data.owner_id,
-          `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) Poket1 Satın Aldı`,
+          t(null, "messages.pocketBoughtOwner", {
+            user_id: ctx.from.id,
+            pocket: 1,
+          }),
           { parse_mode: "Markdown" },
         );
-        await ctx.answerCbQuery("✅ Təbriklər Məzmun Uğurla Alındı!");
+        await ctx.answerCbQuery(t(ctx, "messages.pocketBoughtSuccess"));
         let files = fs.readdirSync(imagesDir);
         const shuffled = files.sort(() => 0.5 - Math.random());
         const selected = shuffled.slice(0, 5);
@@ -1015,30 +842,9 @@ bot.action(/pocket_(.+)/, async (ctx) => {
 
         setTimeout(async () => {
           try {
-            let main_menu_buttons = Markup.inlineKeyboard([
-              [
-                Markup.button.url(
-                  "🔗  Dəvət Et Pulsuz Al  🔗",
-                  `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-                ),
-              ],
-              [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-              [
-                Markup.button.url(
-                  "💋  Özəl Söhbət  💋",
-                  "https://t.me/narmin_alyvaa",
-                ),
-              ],
-              [
-                Markup.button.callback("🍑  Paketlər  🍑", "content"),
-                Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-              ],
-              [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-            ]);
+            let main_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
             await ctx.replyWithPhoto(config_data.profile_photo_id, {
-              caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+              caption: getMainMenuCaption(ctx, "full"),
               parse_mode: "Markdown",
               ...main_menu_buttons,
             });
@@ -1050,10 +856,9 @@ bot.action(/pocket_(.+)/, async (ctx) => {
       break;
     case "2":
       if (user_data.user_balance < contect_data.pocket_2.price) {
-        await ctx.answerCbQuery(
-          "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-          { show_alert: true },
-        );
+        await ctx.answerCbQuery(t(ctx, "alerts.insufficientBalance"), {
+          show_alert: true,
+        });
         await send_invoice_for_pocket(
           ctx,
           contect_data.pocket_2.price - user_data.user_balance,
@@ -1066,10 +871,13 @@ bot.action(/pocket_(.+)/, async (ctx) => {
             geted_user_data.user_balance - contect_data.pocket_2.price,
         };
         await put_user_data(ctx.from.id, new_data);
-        await ctx.answerCbQuery("✅ Təbriklər Məzmun Uğurla Alındı!");
+        await ctx.answerCbQuery(t(ctx, "messages.pocketBoughtSuccess"));
         await bot.telegram.sendMessage(
           config_data.owner_id,
-          `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) Poket2 Satın Aldı`,
+          t(null, "messages.pocketBoughtOwner", {
+            user_id: ctx.from.id,
+            pocket: 2,
+          }),
           { parse_mode: "Markdown" },
         );
         // rastgele 2 videonu videos klasorunden gonder
@@ -1092,30 +900,9 @@ bot.action(/pocket_(.+)/, async (ctx) => {
         });
         setTimeout(async () => {
           try {
-            let main_menu_buttons = Markup.inlineKeyboard([
-              [
-                Markup.button.url(
-                  "🔗  Dəvət Et Pulsuz Al  🔗",
-                  `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-                ),
-              ],
-              [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-              [
-                Markup.button.url(
-                  "💋  Özəl Söhbət  💋",
-                  "https://t.me/narmin_alyvaa",
-                ),
-              ],
-              [
-                Markup.button.callback("🍑  Paketlər  🍑", "content"),
-                Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-              ],
-              [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-            ]);
+            let main_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
             await ctx.replyWithPhoto(config_data.profile_photo_id, {
-              caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+              caption: getMainMenuCaption(ctx, "full"),
               parse_mode: "Markdown",
               ...main_menu_buttons,
             });
@@ -1127,10 +914,9 @@ bot.action(/pocket_(.+)/, async (ctx) => {
       break;
     case "3":
       if (user_data.user_balance < contect_data.pocket_3.price) {
-        await ctx.answerCbQuery(
-          "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-          { show_alert: true },
-        );
+        await ctx.answerCbQuery(t(ctx, "alerts.insufficientBalance"), {
+          show_alert: true,
+        });
         await send_invoice_for_pocket(
           ctx,
           contect_data.pocket_3.price - user_data.user_balance,
@@ -1143,10 +929,13 @@ bot.action(/pocket_(.+)/, async (ctx) => {
             geted_user_data.user_balance - contect_data.pocket_3.price,
         };
         await put_user_data(ctx.from.id, new_data);
-        await ctx.answerCbQuery("✅ Təbriklər Məzmun Uğurla Alındı!");
+        await ctx.answerCbQuery(t(ctx, "messages.pocketBoughtSuccess"));
         await bot.telegram.sendMessage(
           config_data.owner_id,
-          `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) Poket3 Satın Aldı`,
+          t(null, "messages.pocketBoughtOwner", {
+            user_id: ctx.from.id,
+            pocket: 3,
+          }),
           { parse_mode: "Markdown" },
         );
         let files = fs.readdirSync(imagesDir);
@@ -1188,30 +977,9 @@ bot.action(/pocket_(.+)/, async (ctx) => {
         setTimeout(
           async () => {
             try {
-              let main_menu_buttons = Markup.inlineKeyboard([
-                [
-                  Markup.button.url(
-                    "🔗  Dəvət Et Pulsuz Al  🔗",
-                    `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-                  ),
-                ],
-                [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-                [
-                  Markup.button.url(
-                    "💋  Özəl Söhbət  💋",
-                    "https://t.me/narmin_alyvaa",
-                  ),
-                ],
-                [
-                  Markup.button.callback("🍑  Paketlər  🍑", "content"),
-                  Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-                ],
-                [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-              ]);
+              let main_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
               await ctx.replyWithPhoto(config_data.profile_photo_id, {
-                caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+                caption: getMainMenuCaption(ctx, "full"),
                 parse_mode: "Markdown",
                 ...main_menu_buttons,
               });
@@ -1227,10 +995,9 @@ bot.action(/pocket_(.+)/, async (ctx) => {
       break;
     case "4":
       if (user_data.user_balance < contect_data.pocket_4.price) {
-        await ctx.answerCbQuery(
-          "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-          { show_alert: true },
-        );
+        await ctx.answerCbQuery(t(ctx, "alerts.insufficientBalance"), {
+          show_alert: true,
+        });
         await send_invoice_for_pocket(
           ctx,
           contect_data.pocket_4.price - user_data.user_balance,
@@ -1243,10 +1010,13 @@ bot.action(/pocket_(.+)/, async (ctx) => {
             geted_user_data.user_balance - contect_data.pocket_4.price,
         };
         await put_user_data(ctx.from.id, new_data);
-        await ctx.answerCbQuery("✅ Təbriklər Məzmun Uğurla Alındı!");
+        await ctx.answerCbQuery(t(ctx, "messages.pocketBoughtSuccess"));
         await bot.telegram.sendMessage(
           config_data.owner_id,
-          `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) Poket4 Satın Aldı`,
+          t(null, "messages.pocketBoughtOwner", {
+            user_id: ctx.from.id,
+            pocket: 4,
+          }),
           { parse_mode: "Markdown" },
         );
 
@@ -1289,30 +1059,9 @@ bot.action(/pocket_(.+)/, async (ctx) => {
         setTimeout(
           async () => {
             try {
-              let main_menu_buttons = Markup.inlineKeyboard([
-                [
-                  Markup.button.url(
-                    "🔗  Dəvət Et Pulsuz Al  🔗",
-                    `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-                  ),
-                ],
-                [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-                [
-                  Markup.button.url(
-                    "💋  Özəl Söhbət  💋",
-                    "https://t.me/narmin_alyvaa",
-                  ),
-                ],
-                [
-                  Markup.button.callback("🍑  Paketlər  🍑", "content"),
-                  Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-                ],
-                [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-              ]);
+              let main_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
               await ctx.replyWithPhoto(config_data.profile_photo_id, {
-                caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+                caption: getMainMenuCaption(ctx, "full"),
                 parse_mode: "Markdown",
                 ...main_menu_buttons,
               });
@@ -1327,7 +1076,7 @@ bot.action(/pocket_(.+)/, async (ctx) => {
       }
       break;
     default:
-      await ctx.answerCbQuery("❌ Yanlış Paket Seçimi!", {
+      await ctx.answerCbQuery(t(ctx, "alerts.invalidPackage"), {
         show_alert: true,
       });
       break;
@@ -1341,10 +1090,9 @@ bot.action(/show_(.+)/, async (ctx) => {
     switch (pocket_number) {
       case "1":
         if (user_data.user_balance < contect_data.s_pocket_1.price) {
-          await ctx.answerCbQuery(
-            "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-            { show_alert: true },
-          );
+          await ctx.answerCbQuery(t(ctx, "alerts.insufficientBalance"), {
+            show_alert: true,
+          });
           await send_invoice_for_pocket(
             ctx,
             contect_data.s_pocket_1.price - user_data.user_balance,
@@ -1357,21 +1105,23 @@ bot.action(/show_(.+)/, async (ctx) => {
               geted_user_data.user_balance - contect_data.s_pocket_1.price,
           };
           await put_user_data(ctx.from.id, new_data);
-          await ctx.answerCbQuery("✅ Təbriklər Video Zəng Satın Alındı!");
-          await ctx.reply("✅ Uğurla Alındı!\n\nİcra Edilməsi Üçün Özələ Yaz!");
+          await ctx.answerCbQuery(t(ctx, "messages.videoCallBoughtSuccess"));
+          await ctx.reply(t(ctx, "messages.videoCallBoughtFollowup"));
           await bot.telegram.sendMessage(
             config_data.owner_id,
-            `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) Show Poket1 Satın Aldı`,
+            t(null, "messages.showBoughtOwner", {
+              user_id: ctx.from.id,
+              pocket: 1,
+            }),
             { parse_mode: "Markdown" },
           );
         }
         break;
       case "2":
         if (user_data.user_balance < contect_data.s_pocket_2.price) {
-          await ctx.answerCbQuery(
-            "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-            { show_alert: true },
-          );
+          await ctx.answerCbQuery(t(ctx, "alerts.insufficientBalance"), {
+            show_alert: true,
+          });
           await send_invoice_for_pocket(
             ctx,
             contect_data.s_pocket_2.price - user_data.user_balance,
@@ -1384,21 +1134,23 @@ bot.action(/show_(.+)/, async (ctx) => {
               geted_user_data.user_balance - contect_data.s_pocket_2.price,
           };
           await put_user_data(ctx.from.id, new_data);
-          await ctx.answerCbQuery("✅ Təbriklər Video Zəng Satın Alındı!");
-          await ctx.reply("✅ Uğurla Alındı!\n\nİcra Edilməsi Üçün Özələ Yaz!");
+          await ctx.answerCbQuery(t(ctx, "messages.videoCallBoughtSuccess"));
+          await ctx.reply(t(ctx, "messages.videoCallBoughtFollowup"));
           await bot.telegram.sendMessage(
             config_data.owner_id,
-            `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) Show Poket2 Satın Aldı`,
+            t(null, "messages.showBoughtOwner", {
+              user_id: ctx.from.id,
+              pocket: 2,
+            }),
             { parse_mode: "Markdown" },
           );
         }
         break;
       case "3":
         if (user_data.user_balance < contect_data.s_pocket_3.price) {
-          await ctx.answerCbQuery(
-            "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-            { show_alert: true },
-          );
+          await ctx.answerCbQuery(t(ctx, "alerts.insufficientBalance"), {
+            show_alert: true,
+          });
           await send_invoice_for_pocket(
             ctx,
             contect_data.s_pocket_3.price - user_data.user_balance,
@@ -1411,21 +1163,23 @@ bot.action(/show_(.+)/, async (ctx) => {
               geted_user_data.user_balance - contect_data.s_pocket_3.price,
           };
           await put_user_data(ctx.from.id, new_data);
-          await ctx.answerCbQuery("✅ Təbriklər Video Zəng Satın Alındı!");
-          await ctx.reply("✅ Uğurla Alındı!\n\nİcra Edilməsi Üçün Özələ Yaz!");
+          await ctx.answerCbQuery(t(ctx, "messages.videoCallBoughtSuccess"));
+          await ctx.reply(t(ctx, "messages.videoCallBoughtFollowup"));
           await bot.telegram.sendMessage(
             config_data.owner_id,
-            `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) Show Poket3 Satın Aldı`,
+            t(null, "messages.showBoughtOwner", {
+              user_id: ctx.from.id,
+              pocket: 3,
+            }),
             { parse_mode: "Markdown" },
           );
         }
         break;
       case "4":
         if (user_data.user_balance < contect_data.s_pocket_4.price) {
-          await ctx.answerCbQuery(
-            "❌ Balans Çatışmır!\n\n🔗 Zəhmət olmasa Üzv Dəvət Edərək Ulduz Qazan!\n\n💸 Və Ya Pulqabına Ulduz Əlavə Et!",
-            { show_alert: true },
-          );
+          await ctx.answerCbQuery(t(ctx, "alerts.insufficientBalance"), {
+            show_alert: true,
+          });
           await send_invoice_for_pocket(
             ctx,
             contect_data.s_pocket_4.price - user_data.user_balance,
@@ -1438,17 +1192,20 @@ bot.action(/show_(.+)/, async (ctx) => {
               geted_user_data.user_balance - contect_data.s_pocket_4.price,
           };
           await put_user_data(ctx.from.id, new_data);
-          await ctx.answerCbQuery("✅ Təbriklər Video Zəng Satın Alındı!");
-          await ctx.reply("✅ Uğurla Alındı!\n\nİcra Edilməsi Üçün Özələ Yaz!");
+          await ctx.answerCbQuery(t(ctx, "messages.videoCallBoughtSuccess"));
+          await ctx.reply(t(ctx, "messages.videoCallBoughtFollowup"));
           await bot.telegram.sendMessage(
             config_data.owner_id,
-            `✅ [İstifadəçini Gör](tg://user?id=${ctx.from.id}) Show Poket4 Satın Aldı`,
+            t(null, "messages.showBoughtOwner", {
+              user_id: ctx.from.id,
+              pocket: 4,
+            }),
             { parse_mode: "Markdown" },
           );
         }
         break;
       default:
-        await ctx.answerCbQuery("❌ Yanlış Paket Seçimi!", {
+        await ctx.answerCbQuery(t(ctx, "alerts.invalidPackage"), {
           show_alert: true,
         });
         return;
@@ -1462,6 +1219,66 @@ bot.action(/buy_(.+)/, async (ctx) => {
     const amount = ctx.match[1];
     await send_invoice_for_increase(ctx, amount);
     await ctx.answerCbQuery();
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+bot.action("language", async (ctx) => {
+  try {
+    const keyboard = Markup.inlineKeyboard([
+      [
+        Markup.button.callback(t(ctx, "buttons.languageAz"), "set_lang_az"),
+        Markup.button.callback(t(ctx, "buttons.languageTr"), "set_lang_tr"),
+      ],
+      [Markup.button.callback(t(ctx, "buttons.home"), "home")],
+    ]);
+    await ctx.answerCbQuery();
+    await ctx.editMessageMedia(
+      {
+        type: "photo",
+        media: config_data.profile_photo_id,
+        caption: t(ctx, "messages.chooseLanguage"),
+        parse_mode: "Markdown",
+      },
+      keyboard,
+    );
+  } catch (error) {
+    console.log(error);
+  }
+});
+
+bot.action(/set_lang_(az|tr)/, async (ctx) => {
+  try {
+    const selected = normalizeLang(ctx.match[1]);
+    ctx.session.lang = selected;
+
+    const userId = ctx.from.id;
+    const user = await get_user_data(userId);
+    const updated = user
+      ? { ...user, lang: selected }
+      : {
+          user_id: userId,
+          invite_from: config_data.owner_id,
+          user_balance: 0,
+          user_invites: [config_data.owner_id],
+          lang: selected,
+          in_channel: false,
+        };
+    await put_user_data(userId, updated);
+
+    await ctx.answerCbQuery(t(ctx, "messages.languageSaved"));
+
+    const main_menu_buttons = buildMainMenuButtons(ctx, userId);
+    await ctx.editMessageMedia(
+      {
+        type: "photo",
+        media: config_data.profile_photo_id,
+        caption: getMainMenuCaption(ctx, "full"),
+        parse_mode: "Markdown",
+      },
+      main_menu_buttons,
+    );
   } catch (error) {
     console.log(error);
   }
@@ -1518,23 +1335,24 @@ bot.command("upload", async (ctx) => {
   if (ctx.from.id == config_data.owner_id) {
     if (!ctx.session) ctx.session = {};
     ctx.session.uploading = true;
-    await ctx.reply("Zəhmət olmasa Şəkil Göndərin");
+    await ctx.reply(t(ctx, "messages.uploadSendPhoto"));
   }
 });
 bot.command("invoice", async (ctx) => {
   try {
     const TELEGRAM_API_URL = `https://api.telegram.org/bot${process.env.TOKEN}/createInvoiceLink`;
     const amount = parseInt(ctx.message.text.split(" ")[1]);
-    const title = ctx.message.text.split(" ")[2] || "Invoice";
-    const description = ctx.message.text.split(" ")[3] || "Invoice description";
+    const title =
+      ctx.message.text.split(" ")[2] || t(ctx, "messages.invoiceDefaultTitle");
+    const description =
+      ctx.message.text.split(" ")[3] ||
+      t(ctx, "messages.invoiceDefaultDescription");
     if (isNaN(amount)) {
-      await ctx.reply(
-        "Please provide a valid amount. Usage: /invoice <amount_in_cents>",
-      );
+      await ctx.reply(t(ctx, "messages.invoiceInvalidAmount"));
       return;
     }
     if (ctx.from.id != config_data.owner_id) {
-      await ctx.reply("You are not authorized to use this command.");
+      await ctx.reply(t(ctx, "messages.invoiceNotAuthorized"));
       return;
     }
     const invoice = {
@@ -1542,40 +1360,50 @@ bot.command("invoice", async (ctx) => {
       description: description,
       payload: "unique-payload-identifier",
       currency: "XTR",
-      prices: [{ label: "Item", amount: amount }],
+      prices: [{ label: t(ctx, "messages.invoiceItemLabel"), amount: amount }],
     };
     await axios
       .post(TELEGRAM_API_URL, invoice)
       .then((response) => {
         if (response.data.ok) {
-          ctx.reply(`Invoice link: ${response.data.result}`);
+          ctx.reply(
+            t(ctx, "messages.invoiceLink", { link: response.data.result }),
+          );
         } else {
-          ctx.reply("Failed to create invoice link.");
+          ctx.reply(t(ctx, "messages.invoiceCreateFail"));
           bot.telegram.sendMessage(
             config_data.owner_id,
-            `❌ Failed to create invoice link: ${response.data.description}`,
+            t(null, "messages.invoiceCreateFailOwner", {
+              description: response.data.description,
+            }),
           );
         }
       })
       .catch((error) => {
         console.log(error);
-        ctx.reply("Error occurred while creating invoice link.");
+        ctx.reply(t(ctx, "messages.invoiceCreateError"));
         bot.telegram.sendMessage(
           config_data.owner_id,
-          `❌ Error in /invoice command for user ${ctx.from.id}: ${error}`,
+          t(null, "messages.invoiceCommandErrorOwner", {
+            user_id: ctx.from.id,
+            error,
+          }),
         );
       });
   } catch (error) {
     console.log(error);
     bot.telegram.sendMessage(
       config_data.owner_id,
-      `❌ Error in /invoice command for user ${ctx.from.id}: ${error}`,
+      t(null, "messages.invoiceCommandErrorOwner", {
+        user_id: ctx.from.id,
+        error,
+      }),
     );
   }
 });
 bot.command("myid", async (ctx) => {
   try {
-    await ctx.reply(`Sənin ID-n: ${ctx.from.id}`);
+    await ctx.reply(t(ctx, "messages.myId", { id: ctx.from.id }));
   } catch (error) {
     console.log(error);
   }
@@ -1596,28 +1424,13 @@ bot.on("photo", async (ctx) => {
         console.log("Photo Uploaded");
       });
       ctx.session.uploading = false;
-      await ctx.reply("Şəkil Uğurla Yükləndi!");
+      await ctx.reply(t(ctx, "messages.photoUploaded"));
       return;
     }
 
-    let main_menu_buttons = Markup.inlineKeyboard([
-      [
-        Markup.button.url(
-          "🔗  Dəvət Et Pulsuz Al  🔗",
-          `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-        ),
-      ],
-      [Markup.button.url("💋  Özəl Söhbət  💋", "https://t.me/narmin_alyvaa")],
-      [
-        Markup.button.callback("🍑  Paketlər  🍑", "content"),
-        Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-      ],
-      [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-    ]);
+    let main_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
     await ctx.replyWithPhoto(config_data.profile_photo_id, {
-      caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+      caption: getMainMenuCaption(ctx, "simple"),
       parse_mode: "Markdown",
       ...main_menu_buttons,
     });
@@ -1639,29 +1452,14 @@ bot.on("video", async (ctx) => {
       const fs = require("fs");
       fs.writeFileSync(`videos/${file_id}.mp4`, buffer);
       ctx.session.uploading = false;
-      await ctx.reply("Video Uğurla Yükləndi!");
+      await ctx.reply(t(ctx, "messages.videoUploaded"));
       return;
     } else {
     }
 
-    let main_menu_buttons = Markup.inlineKeyboard([
-      [
-        Markup.button.url(
-          "🔗  Dəvət Et Pulsuz Al  🔗",
-          `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-        ),
-      ],
-      [Markup.button.url("💋  Özəl Söhbət  💋", "https://t.me/narmin_alyvaa")],
-      [
-        Markup.button.callback("🍑  Paketlər  🍑", "content"),
-        Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-      ],
-      [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-    ]);
+    let main_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
     await ctx.replyWithPhoto(config_data.profile_photo_id, {
-      caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+      caption: getMainMenuCaption(ctx, "simple"),
       parse_mode: "Markdown",
       ...main_menu_buttons,
     });
@@ -1672,25 +1470,9 @@ bot.on("video", async (ctx) => {
 
 bot.on("text", async (ctx) => {
   try {
-    let main_menu_buttons = Markup.inlineKeyboard([
-      [
-        Markup.button.url(
-          "🔗  Dəvət Et Pulsuz Al  🔗",
-          `https://t.me/share/url?url=${encodeURIComponent(`https://t.me/${config_data.bot_username}?start=${ctx.from.id}`)}`,
-        ),
-      ],
-      [Markup.button.callback(`👑  VIP KANAL  👑`, "wip_channel")],
-      [Markup.button.url("💋  Özəl Söhbət  💋", "https://t.me/narmin_alyvaa")],
-      [
-        Markup.button.callback("🍑  Paketlər  🍑", "content"),
-        Markup.button.callback("🥵  Video Zəng 🥵", "show"),
-      ],
-      [Markup.button.callback("💸  Pulqabı  💸", "wallet")],
-      [Markup.button.callback("🌐  Dil  🌐", "language")],
-
-    ]);
+    let main_menu_buttons = buildMainMenuButtons(ctx, ctx.from.id);
     await ctx.replyWithPhoto(config_data.profile_photo_id, {
-      caption: `✋🏻 Salam Balam Xoş Gəldin!\n\n👑 VIP Kanal Hər Gün Yeni Özəl Videolar\n\n🔥 Tam Açıq Məzmunlar\n\n🥵 Video Zəng, Özəl Çəkilişlər\n\n✅ Pulsuz Giriş Fürsəti\n\n🔗 Dəvət Etdiyin Hər Nəfər Üçün ${config_data.star_per_invite} 🌟 Qazan!`,
+      caption: getMainMenuCaption(ctx, "full"),
       parse_mode: "Markdown",
       ...main_menu_buttons,
     });
@@ -1704,7 +1486,7 @@ setInterval(
     try {
       await bot.telegram.sendMessage(
         config_data.owner_id,
-        `⏰ Running daily subscription check...`,
+        t(null, "messages.dailyCheckOwner"),
       );
       const now = Date.now();
       const all_users = await get_all_data();
@@ -1721,13 +1503,19 @@ setInterval(
               all_users[key].in_channel &&
               !all_users[key].is_vip
             ) {
+              const userLang =
+                all_users[key] && typeof all_users[key].lang === "string"
+                  ? all_users[key].lang
+                  : "az";
               await bot.telegram.sendMessage(
                 all_users[key].user_id,
-                "⏰ Abunəliyiniz Sabah Başa Çatır!\n\nDərhal /start Əmrini İstifadə Edərək Abunəliyinizi Yeniləyin və Özəl Məzmunlara Girişə Davam Edin!",
+                i18n.t(userLang, "messages.expiringSoonUser"),
               );
               await bot.telegram.sendMessage(
                 config_data.owner_id,
-                `⚠️ Warning sent to user ${all_users[key].user_id} about subscription expiring in 1 day.`,
+                t(null, "messages.expiringSoonOwner", {
+                  user_id: all_users[key].user_id,
+                }),
               );
               await new Promise((resolve) => setTimeout(resolve, 2000));
             }
@@ -1750,13 +1538,19 @@ setInterval(
                 expires_at: null,
               };
               await put_user_data(all_users[key].user_id, new_data);
+              const userLang =
+                all_users[key] && typeof all_users[key].lang === "string"
+                  ? all_users[key].lang
+                  : "az";
               await bot.telegram.sendMessage(
                 all_users[key].user_id,
-                "⏰ Abunəliyiniz Başa Çatdı!\n\nZəhmət olmasa /start Əmrini İstifadə Edərək Abunəliyinizi Yeniləyin və Özəl Məzmunlara Girişə Davam Edin!",
+                i18n.t(userLang, "messages.expiredUser"),
               );
               await bot.telegram.sendMessage(
                 config_data.owner_id,
-                `❌ User ${all_users[key].user_id} subscription expired and was removed from channel.`,
+                t(null, "messages.expiredOwner", {
+                  user_id: all_users[key].user_id,
+                }),
               );
               await new Promise((resolve) => setTimeout(resolve, 2000));
             }
@@ -1780,7 +1574,7 @@ initDb()
     try {
       await bot.telegram.sendMessage(
         config_data.owner_id,
-        `❌ SQLite DB init xətası\n\n${error}\n\n#error`,
+        t(null, "messages.sqliteInitFailOwner", { error }),
       );
     } catch (e) {}
     process.exit(1);
