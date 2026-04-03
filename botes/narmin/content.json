@@ -1,0 +1,73 @@
+{
+    "wip_channel_price_lifetime": 2000,
+    "wip_channel_price_weekly": 150,
+    "wip_channel_price_15days": 290,
+    "wip_channel_price_monthly": 550,
+    "wip_channel_price_3monthly": 1500,
+    "s_pocket_1":{
+        "price":200
+    },
+    "s_pocket_2":{
+        "price":250
+    },
+    "s_pocket_3":{
+        "price":400
+    },
+    "s_pocket_4":{
+        "price":550
+    },
+    "pocket_1":{
+        "price":100,
+        "photo":[
+          "AgACAgIAAxkBAANtacMrMPtjcLpKkzBjEL2ITLoa2ZoAAogZaxvpyxhKu_AwZ54uqBEBAAMCAAN5AAM6BA",
+          "AgACAgIAAxkBAANvacMrMGWJ-MuW5hnqA0Zj6ubMVx4AAooZaxvpyxhKGx9-TXiD76YBAAMCAAN5AAM6BA",
+          "AgACAgIAAxkBAANwacMrMFjs6yeTjPQq2E-W7ybaoXYAAosZaxvpyxhKyq_fVpsXvnUBAAMCAAN5AAM6BA",
+          "AgACAgIAAxkBAANuacMrMP0ekN8RX-e-UgHl0PtjAjUAAokZaxvpyxhKpzJXJdw6y_8BAAMCAAN5AAM6BA",
+          "AgACAgIAAxkBAANxacMrMJ75gIIDKY2aiZ_y34xVClkAAowZaxvpyxhKRSyBlxggkLUBAAMCAAN5AAM6BA"
+        ]
+    },
+    "pocket_2":{
+        "price":150,
+        "video":[
+            "BAACAgIAAxkBAAMvaM347G4QmenClqes1DObKlIp_8gAAiKJAAJh2nFK2pgs6yk5MQU2BA",
+            "BAACAgIAAxkBAAMyaM347Ru_mlX_DtmqO10RRNNpm2cAAiSJAAJh2nFKXo8VTv6au1o2BA"
+        ]
+    },
+    "pocket_3":{
+        "price":200,
+        "photo":[
+            "AgACAgIAAxkBAAM1aM35JVxQJ4QnbKLGd8fhkJEbRnEAArX9MRth2nFKmhQm656Do-QBAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAAM3aM35Jma9De8HM79crkmTlVjn2q8AApwAATIbDnzpSJwUD5hYvF5MAQADAgADeQADNgQ",
+            "AgACAgIAAxkBAAM7aM35Lk5x_uwZWkqf1S1weKP4VDIAArb9MRth2nFKbTooSZkrpx4BAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAAM9aM35Lr18zqZdt2ypUYS_39InGZgAArf9MRth2nFK5rUFsqrzNN0BAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAAM_aM35LphHMr0UBd4ha4HwqqDGyW4AArj9MRth2nFKSPDfaX0-IFMBAAMCAAN5AAM2BA"
+        ],
+        "video":[
+            "BAACAgIAAxkBAANEaM35ipNzflBGqRycISCY1p0fkp0AAiqJAAJh2nFKuyNhupFascg2BA",
+            "BAACAgIAAxkBAAMvaM347G4QmenClqes1DObKlIp_8gAAiKJAAJh2nFK2pgs6yk5MQU2BA"
+        ]
+    },
+    "pocket_4":{
+        "price":300,
+        "photo":[
+            "AgACAgIAAxkBAAM1aM35JVxQJ4QnbKLGd8fhkJEbRnEAArX9MRth2nFKmhQm656Do-QBAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAAM7aM35Lk5x_uwZWkqf1S1weKP4VDIAArb9MRth2nFKbTooSZkrpx4BAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAAM3aM35Jma9De8HM79crkmTlVjn2q8AApwAATIbDnzpSJwUD5hYvF5MAQADAgADeQADNgQ",
+            "AgACAgIAAxkBAAMlaM34kIQ9ZZFUPYL1hk9wf7cyk4YAArP9MRth2nFK3V7MNxvpP24BAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAAMiaM34kNHKHPN7VBldJmzI4rSK2VMAArL9MRth2nFKQjCp2oezuUABAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAAMnaM34kL_KaS_Qd1bjzd7nCE3QxjsAArT9MRth2nFK6-rAsA3e7S8BAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAAMpaM34kC9bDgp3Qi7_llusIhfQetwAAp8AATIbDnzpSB0MecbjO6GoAQADAgADeQADNgQ",
+            "AgACAgIAAxkBAANfaM3__7L78Hov7QOQkENw9kbRjM4AAsD9MRth2nFKvgwBzNyne-4BAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAAMgaM34j_J_z20jt_9zjiUHBmEhK2IAArH9MRth2nFKbzwBOMthRRABAAMCAAN5AAM2BA",
+            "AgACAgIAAxkBAANiaM3__8ZSfWXZ0F48t-nGEGPsRxsAAsH9MRth2nFKy-a4GCNTQmMBAAMCAAN5AAM2BA"
+        ],
+        "video":[
+            "BAACAgIAAxkBAAMvaM347G4QmenClqes1DObKlIp_8gAAiKJAAJh2nFK2pgs6yk5MQU2BA",
+            "BAACAgIAAxkBAAMyaM347Ru_mlX_DtmqO10RRNNpm2cAAiSJAAJh2nFKXo8VTv6au1o2BA",
+            "BAACAgIAAxkBAANEaM35ipNzflBGqRycISCY1p0fkp0AAiqJAAJh2nFKuyNhupFascg2BA",
+            "BAACAgIAAxkBAANxaM4AAabJFP4QquJ_0_8c9cUJ7D5cAAIziQACYdpxSkIAAYVlk3qUJzYE",
+            "BAACAgIAAxkBAANzaM4AAaZNnaFBZP1LFCM1H3PcAQjBAAI0iQACYdpxSop61Dz_5312NgQ"
+        ]
+    }
+    
+}
