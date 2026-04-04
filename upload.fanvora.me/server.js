@@ -38,7 +38,8 @@ async function createWriteStreamUnique(targetDir, wantedName) {
     const name = i === 0 ? `${stem}${ext}` : `${stem} (${i})${ext}`;
     const fullPath = path.join(targetDir, name);
     try {
-      const stream = fs.createWriteStream(fullPath, { flags: "wx" });
+      const fd = fs.openSync(fullPath, "wx");
+      const stream = fs.createWriteStream(fullPath, { fd, autoClose: true });
       return { name, fullPath, stream };
     } catch (e) {
       if (e && e.code === "EEXIST") continue;
