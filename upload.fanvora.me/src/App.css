@@ -1,0 +1,207 @@
+.shell {
+  min-height: 100vh;
+  background: #0b1220;
+  color: #e7eefc;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(11, 18, 32, 0.8);
+  backdrop-filter: blur(10px);
+}
+
+.brand {
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.nav {
+  display: flex;
+  gap: 10px;
+}
+
+.navLink {
+  color: #e7eefc;
+  text-decoration: none;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.navLink:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 18px 16px 28px;
+}
+
+h1 {
+  font-size: 22px;
+  margin: 10px 0 12px;
+}
+
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 14px;
+  padding: 14px;
+  margin-top: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.muted {
+  color: rgba(231, 238, 252, 0.7);
+  font-size: 13px;
+}
+
+.hidden {
+  display: none;
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e7eefc;
+  border-radius: 12px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.btnSecondary {
+  font-weight: 600;
+}
+
+.table {
+  display: grid;
+  gap: 8px;
+}
+
+.thead,
+.trow {
+  display: grid;
+  grid-template-columns: 1fr 120px 360px;
+  gap: 10px;
+  align-items: center;
+}
+
+.thead {
+  color: rgba(231, 238, 252, 0.7);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 6px 10px;
+}
+
+.trow {
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.trow.highlight {
+  border-color: rgba(74, 222, 128, 0.55);
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.12) inset;
+}
+
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progressWrap {
+  position: relative;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+}
+
+.progressBar {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.55), rgba(74, 222, 128, 0.55));
+}
+
+.progressText {
+  position: relative;
+  z-index: 1;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  font-size: 12px;
+  color: rgba(231, 238, 252, 0.92);
+}
+
+.ok {
+  color: rgba(74, 222, 128, 0.95);
+  font-weight: 700;
+}
+
+.err {
+  color: rgba(248, 113, 113, 0.95);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.link {
+  color: rgba(56, 189, 248, 0.95);
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 860px) {
+  .thead,
+  .trow {
+    grid-template-columns: 1fr 100px;
+  }
+
+  .thead > :nth-child(3),
+  .trow > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+
+  .actions {
+    justify-content: flex-start;
+  }
+}
